@@ -20,7 +20,8 @@ object WebServer extends App {
   def start(): Unit = {
     implicit val system = ActorSystem("chat-actor-system")
 
-    val chatRoom = system.actorOf(ChatRoom.props, "chat")
+    val chatRoom1 = system.actorOf(ChatRoom.props, "chat1")
+    val chatRoom2 = system.actorOf(ChatRoom.props, "chat2")
 
     def newUser(chatroomRef: ActorRef, nickname: String): Flow[Message, Message, NotUsed] = {
       val userActor = system.actorOf(Props(new User(chatroomRef, nickname)))
@@ -30,7 +31,7 @@ object WebServer extends App {
       //ability of the webserver actor to receive message from a websocket request
       val incomingMessages: Sink[Message, NotUsed] =
       Flow[Message].map {
-        case TextMessage.Strict(text) => IncomingMessage(nickname+":"+text)
+        case TextMessage.Strict(text) => IncomingMessage(nickname+" : "+text)
       }.to(Sink.actorRef[User.IncomingMessage](userActor, PoisonPill, logError))
 
       //user sends to its chatroom actor `outgoing ! OutgoingMessage(author, text)`, therefore triggering
@@ -49,10 +50,14 @@ object WebServer extends App {
 
     //endpoint to send chat, and then broadcasts the message to different user
     val route =
-      path("chat" / Segment / "nickname" / Segment) { (room, nickname) =>
+      path("chat" / Segment / "nickname" / Segment) { (chatRoomName, nickname) =>
         get {
-          //hooking of the actor to a chatroom
-          handleWebSocketMessages(newUser(chatRoom, nickname))
+          val chatRoomActorRef = chatRoomName match {
+            case "chat1" => chatRoom1
+            case "chat2" => chatRoom2
+            //TODO: catch wild card scenario, maybe use custom ADT.
+          }
+          handleWebSocketMessages(newUser(chatRoomActorRef, nickname))
         }
       }
 

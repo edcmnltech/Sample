@@ -10,7 +10,7 @@
 <div class="container">
         <div class="col-sm px-md-n5 mx-auto">
             <div>
-                <h5 id="chatroom" class="card-header">Chat History: </h5>
+                <h5 id="chatroom" class="card-header">Chat Room: </h5>
                 <div class="overflow-auto card" style="height:300px">
                     <ul id="messages" class="list-group"></ul>
                 </div>
@@ -31,15 +31,18 @@
 
 <script language="javascript">
 
+            var chatroom = $(location).attr('href').split('#');
+            var last = chatroom[chatroom.length - 1];
             var nickname = prompt("Enter your nickname");
 
             var $messages = $("#messages"),
                 $send = $("#send"),
                 $message = $("#message"),
-                addr = 'ws://test:1234@localhost:8080/chat/1/nickname/'+nickname
+                addr = 'ws://test:1234@localhost:8080/chat/'+last+'/nickname/'+nickname
                 connection = new WebSocket(addr)
                 $send.prop("disabled",true)
-                
+            
+            $("#chatroom").html("Chat Room: "+last)    
             $("#nickname").html("Nickname: "+nickname);
 
 
@@ -57,6 +60,7 @@
                 $messages.append($("<li class='list-group-item'>" + event.data + "</li>"))
                 document.getElementById('messages').lastChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
             }
+
 
 
         </script>

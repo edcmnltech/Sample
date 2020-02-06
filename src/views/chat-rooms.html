@@ -12,8 +12,8 @@
               <div class="col-sm px-md-n5">
                 <div class="overflow-auto" style="height:300px">
                     <ul id="messages" class="list-group">
-                        <li class='list-group-item'><a href="chat-client.html">Chatroom 1</a></li>
-                        <li class='list-group-item'><a href="chat-client.html"></a>Chatroom 2</a></li>
+                        <li class='list-group-item'><a href="chat-client.html#chat1">Chatroom 1</a></li>
+                        <li class='list-group-item'><a href="chat-client.html#chat2">Chatroom 2</a></li>
                     </ul>
                 </div>
               </div>
@@ -22,16 +22,7 @@
         </form>
 
         <script language="javascript">
-            var $messages = $("#messages"),
-                $send = $("#send"),
-                $message = $("#message"),
-                connection = new WebSocket('ws://test:1234@localhost:8080/chat')
-            $send.prop("disabled",true)
-
-            connection.onerror = function (error) { console.log('WebSocket Error ', error) }
-            connection.onmessage = function (event) {
-                $messages.append($("<li class='list-group-item'>" + event.data + "</li>"))
-            }
+            
         </script>
     </body>
 </html>
