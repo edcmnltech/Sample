@@ -5,7 +5,7 @@ import com.sample.chat.ChatRoom.{ChatMessage, Join}
 
 object ChatRoom {
   final case object Join
-  final case class ChatMessage(message: String)
+  final case class ChatMessage(author: String, message: String)
   def props() = Props(classOf[ChatRoom])
   var chatRooms: Set[ActorRef] = Set.empty
 }
