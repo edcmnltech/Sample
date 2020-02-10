@@ -1,6 +1,6 @@
 package com.sample.chat
 
-import akka.actor.{Actor, ActorRef}
+import akka.actor.{Actor, ActorRef, DeadLetter}
 import com.sample.chat.User.{Connected, IncomingMessage, OutgoingMessage}
 
 object User {
@@ -20,9 +20,13 @@ class User(chatRoom: ActorRef, nickname: String) extends Actor {
 
   def connected(outgoing: ActorRef): Receive = {
     case IncomingMessage(text) =>
+      println(s"incoming message to $chatRoom")
       chatRoom ! ChatRoom.ChatMessage(text)
     case ChatRoom.ChatMessage(text) =>
+      println(s"outgoing message to $outgoing")
       outgoing ! OutgoingMessage(text)
+    case d: DeadLetter =>
+      println(s"dead letter sender: ${d.sender} recepient: ${d.recipient} messsage: ${d.message}")
   }
 
 }
