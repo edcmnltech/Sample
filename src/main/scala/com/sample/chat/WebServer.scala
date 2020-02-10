@@ -11,7 +11,6 @@ import akka.http.scaladsl.server.Directives._
 import akka.stream.{CompletionStrategy, IOResult, Materializer, OverflowStrategy, SystemMaterializer}
 import akka.stream.scaladsl.{FileIO, Flow, Keep, RunnableGraph, Sink, Source}
 import akka.util.ByteString
-import com.sample.chat.Total.Increment
 import com.sample.chat.User.IncomingMessage
 import com.sample.chat.model.ChatHistory
 
