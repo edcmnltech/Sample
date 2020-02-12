@@ -1,21 +1,21 @@
 package com.sample.chat
 
-import java.nio.file.Paths
+import java.nio.file.{Paths, StandardOpenOption}
 
-import akka.{Done, NotUsed}
-import akka.actor.{ActorRef, ActorSystem, PoisonPill, Props}
+import akka.NotUsed
+import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.ws
-import akka.http.scaladsl.model.ws.{Message, TextMessage}
+import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.http.scaladsl.server.Directives._
-import akka.stream.{CompletionStrategy, IOResult, Materializer, OverflowStrategy, SystemMaterializer}
-import akka.stream.scaladsl.{FileIO, Flow, Keep, RunnableGraph, Sink, Source}
+import akka.http.scaladsl.server.Route
+import akka.stream.scaladsl.{FileIO, Flow, Keep, Sink, Source}
+import akka.stream.{CompletionStrategy, IOResult, Materializer, OverflowStrategy}
 import akka.util.ByteString
-import com.sample.chat.User.IncomingMessage
+import com.sample.chat.User.{IncomingMessage, OutgoingMessage}
 import com.sample.chat.model.ChatHistory
 
-import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration._
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.io.StdIn
 
 final case class TextWithAuthor(text: String, author: String)
@@ -29,20 +29,14 @@ object WebServer extends App {
     val chatRoom1 = system.actorOf(ChatRoom.props, "chat1")
     val chatRoom2 = system.actorOf(ChatRoom.props, "chat2")
 
-    //Composite Flow
-    def newUser(chatroomRef: ActorRef, nickname: String): Flow[Message, Message, NotUsed] = {
-      val userActor = system.actorOf(Props(new User(chatroomRef, nickname)), nickname)
+    def newUser(chatRoomRef: ActorRef, nickname: String): Flow[Message, Message, NotUsed] = {
+      val userActor = system.actorOf(Props(new User(chatRoomRef, nickname)), nickname)
+      val chatRoomName = chatRoomRef.path.name
 
-      val chatRoomName = chatroomRef.path.name
-      val source1: Source[Message, Future[IOResult]] = ChatHistory.loadHistoryFrom(chatRoomName).map(TextMessage.Strict)
-      val source2: Source[Message, NotUsed.type] = outgoingMessages(userActor)
-      val combinedSource: Source[Message, Future[IOResult]] = source1.concat(source2)
-
-      Flow.fromSinkAndSource(incomingMessages(userActor, nickname), combinedSource)
+      Flow.fromSinkAndSource(incomingMessages(userActor, nickname, chatRoomName), outgoingMessages(userActor, chatRoomName))
     }
 
-    //endpoint to send chat, and then broadcasts the message to different user
-    val route =
+    val route: Route =
       path("chat" / Segment / "nickname" / Segment) { (chatRoomName, nickname) =>
         get {
           val chatRoomActorRef = chatRoomName match {
@@ -56,14 +50,12 @@ object WebServer extends App {
 
     val binding = Await.result(Http().bindAndHandle(route, "localhost", 8080), 3.seconds)
 
-    println("Server started")
+    println("Server started...")
     StdIn.readLine()
     system.terminate()
   }
 
-  def logError: Throwable => Any = {
-    case throwable: Throwable => print(s"something went wrong: ${throwable.getMessage}")
-  }
+  def logError: Throwable => Any =  { throwable: Throwable => print(s"something went wrong: ${throwable.getMessage}") }
 
   /**
    *
@@ -75,10 +67,23 @@ object WebServer extends App {
    * sink, exactly one input, requesting, accepting data elements
    * ability of the webserver actor to receive message from a websocket request
    */
-  def incomingMessages(userActor: ActorRef, nickname: String): Sink[Message, NotUsed] = {
-    Flow[Message].map {
-      case TextMessage.Strict(text) => IncomingMessage(nickname+" : "+text)
-    }.to(Sink.actorRef[User.IncomingMessage](userActor, CompletionStrategy.immediately, logError))
+  def incomingMessages(userActor: ActorRef, nickname: String, chatRoomName: String)(implicit mat: Materializer, ec: ExecutionContext): Sink[Message, NotUsed] = {
+    val parallelism = 4;
+    val streamedMessageTimeout: FiniteDuration = 5 seconds
+
+    val actorSink: Sink[IncomingMessage, NotUsed]  = Sink.actorRef[User.IncomingMessage](userActor, CompletionStrategy.immediately, logError)
+    val historySink: Sink[ByteString, Future[IOResult]] = ChatHistory.load(chatRoomName)
+
+    Flow[Message].mapAsync(parallelism) {
+      case TextMessage.Strict(text) => Future.successful(Some(IncomingMessage(s"$nickname : $text")))
+      case bm: BinaryMessage =>
+        bm.dataStream.runWith(Sink.ignore)
+        Future.successful(None) }
+      .collect { case Some(msg) => msg }
+      .via(Flow[IncomingMessage].map(im => ByteString(im.text+"\n")))
+      .alsoToMat(historySink)(Keep.right)
+      .viaMat(Flow[ByteString].map(a => IncomingMessage(a.utf8String)))(Keep.right)
+      .to(actorSink)
   }
 
   /**
@@ -91,13 +96,15 @@ object WebServer extends App {
    * one time setting up of the source
    * ability of the actor to send message to a chatroom, then sending to all users connected to it
    */
-  def outgoingMessages(userActor: ActorRef): Source[TextMessage.Strict, NotUsed.type] = {
-    Source.actorRef[User.OutgoingMessage](100, OverflowStrategy.fail) //fail for now
+  def outgoingMessages(userActor: ActorRef, chatRoomName: String)(implicit mat: Materializer, ec: ExecutionContext): Source[Message, Future[IOResult]] = {
+    val historySource: Source[Message, Future[IOResult]] = ChatHistory.unload(chatRoomName).map(TextMessage.Strict)
+    val outgoingMessageSource = Source.actorRef[User.OutgoingMessage](100, OverflowStrategy.fail) //fail for now
     .mapMaterializedValue { outActor =>
       userActor ! User.Connected(outActor)
       NotUsed
-    }.map((outMsg: User.OutgoingMessage) => TextMessage(outMsg.text))
+    }.map { outMsg: OutgoingMessage => TextMessage(outMsg.text) }
 
+    historySource.concat(outgoingMessageSource)
   }
 
   start()

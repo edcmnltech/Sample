@@ -1,6 +1,7 @@
 package com.sample.chat
 
-import akka.actor.{Actor, ActorRef, DeadLetter}
+import akka.actor.{Actor, ActorRef, DeadLetter, UnhandledMessage}
+import akka.http.scaladsl.model.ws.TextMessage
 import com.sample.chat.User.{Connected, IncomingMessage, OutgoingMessage}
 
 object User {
@@ -8,6 +9,8 @@ object User {
   final case class IncomingMessage(text: String)
   final case class OutgoingMessage(text: String)
 }
+
+import akka.http.scaladsl.model.ws.Message
 
 class User(chatRoom: ActorRef, nickname: String) extends Actor {
 
@@ -20,13 +23,17 @@ class User(chatRoom: ActorRef, nickname: String) extends Actor {
 
   def connected(outgoing: ActorRef): Receive = {
     case IncomingMessage(text) =>
-      println(s"incoming message to $chatRoom")
+      println(s"msg in <- $chatRoom")
       chatRoom ! ChatRoom.ChatMessage(text)
     case ChatRoom.ChatMessage(text) =>
-      println(s"outgoing message to $outgoing")
+      println(s"msg out -> $outgoing")
       outgoing ! OutgoingMessage(text)
     case d: DeadLetter =>
       println(s"dead letter sender: ${d.sender} recepient: ${d.recipient} messsage: ${d.message}")
+    case u: UnhandledMessage =>
+      println(s"dead letter sender: ${u.sender} recepient: ${u.recipient} messsage: ${u.message}")
+    case x: Message =>
+      println(s"default $x")
   }
 
 }
