@@ -1,11 +1,9 @@
-ultron : aaa
-tony stark : 234
-qwerty : r
-qwerty : qqq
-qwerty : qqq
-qwerty : qqq
-qwerty : qqq
-anne : aaa
-delofi : hi
-anne : wew
-delofi : argarin
+grzegorz : czesc
+anja : hej
+grzegorz : co robic
+anja : nic
+anja : masz co robic w Walentynki?
+grzegorz : nic rowniez, a ty?
+anja : ja tez nic
+grzegorz : co myslisz? :)
+anja : ... ta
