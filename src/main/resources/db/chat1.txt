@@ -7,3 +7,9 @@ grzegorz : nic rowniez, a ty?
 anja : ja tez nic
 grzegorz : co myslisz? :)
 anja : ... ta
+agnieszka : czesc wszyscy!
+agnieszka : <h1>sample</h1>
+keepalive : aaa
+keepalive : co sie stalo
+agnieszka : nic
+keepalive : ping

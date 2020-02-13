@@ -1,14 +1,13 @@
 package com.sample.chat
 
-import java.nio.file.{Paths, StandardOpenOption}
-
 import akka.NotUsed
 import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
-import akka.stream.scaladsl.{FileIO, Flow, Keep, Sink, Source}
+import akka.http.scaladsl.server.{MalformedQueryParamRejection, RejectionHandler, RequestContext, Route, RouteResult, ValidationRejection}
+import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{CompletionStrategy, IOResult, Materializer, OverflowStrategy}
 import akka.util.ByteString
 import com.sample.chat.User.{IncomingMessage, OutgoingMessage}
@@ -39,12 +38,15 @@ object WebServer extends App {
     val route: Route =
       path("chat" / Segment / "nickname" / Segment) { (chatRoomName, nickname) =>
         get {
-          val chatRoomActorRef = chatRoomName match {
-            case "chat1" => chatRoom1
-            case "chat2" => chatRoom2
-            //TODO: catch wild card scenario, maybe use custom ADT.
+          val chatRoomActorRef: Option[ActorRef] = chatRoomName match {
+            case "chat1" => Option(chatRoom1)
+            case "chat2" => Option(chatRoom2)
+            case _ => None
           }
-          handleWebSocketMessages(newUser(chatRoomActorRef, nickname))
+          chatRoomActorRef match {
+            case Some(actorRef) => handleWebSocketMessages(newUser(actorRef, nickname))
+            case None => reject(new ValidationRejection("This didn't work."))
+          }
         }
       }
 
@@ -56,6 +58,8 @@ object WebServer extends App {
   }
 
   def logError: Throwable => Any =  { throwable: Throwable => print(s"something went wrong: ${throwable.getMessage}") }
+  def throwError: Any => Exception = { _  => new Exception("Something went wrong") }
+  def completionImmediatelyMatcher: Any => CompletionStrategy = { _ => CompletionStrategy.immediately }
 
   /**
    *
@@ -98,13 +102,19 @@ object WebServer extends App {
    */
   def outgoingMessages(userActor: ActorRef, chatRoomName: String)(implicit mat: Materializer, ec: ExecutionContext): Source[Message, Future[IOResult]] = {
     val historySource: Source[Message, Future[IOResult]] = ChatHistory.unload(chatRoomName).map(TextMessage.Strict)
-    val outgoingMessageSource = Source.actorRef[User.OutgoingMessage](100, OverflowStrategy.fail) //fail for now
-    .mapMaterializedValue { outActor =>
-      userActor ! User.Connected(outActor)
-      NotUsed
-    }.map { outMsg: OutgoingMessage => TextMessage(outMsg.text) }
+    val outgoingMessageSource = Source.actorRef[User.OutgoingMessage](100, OverflowStrategy.fail)
+      .mapMaterializedValue { outActor =>
+        userActor ! User.Connected(outActor)
+        NotUsed
+      }.map { outMsg: OutgoingMessage => TextMessage(outMsg.text) }
 
     historySource.concat(outgoingMessageSource)
+  }
+
+  def rejectionHandler: RejectionHandler = {
+    RejectionHandler.newBuilder()
+      .handleNotFound(complete((StatusCodes.NotFound, "Page not found")))
+      .result()
   }
 
   start()
