@@ -35,10 +35,15 @@
             var last = chatroom[chatroom.length - 1];
             var nickname = prompt("Enter your nickname");
 
+            var host = "192.168.147.165"
+            //var host = "localhost"
+            var port = "8080"
+            var url = host+":"+port
+
             var $messages = $("#messages"),
                 $send = $("#send"),
                 $message = $("#message"),
-                addr = 'ws://test:1234@localhost:8080/chat/'+last+'/nickname/'+nickname
+                addr = 'ws://test:1234@'+url+'/chat/'+last+'/nickname/'+nickname
                 connection = new WebSocket(addr)
                 $send.prop("disabled",true)
             

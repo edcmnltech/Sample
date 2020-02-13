@@ -1,4 +1,4 @@
-package com.sample.chat.model
+package com.sample.chat.repository
 
 import java.nio.file.{OpenOption, Paths, StandardOpenOption}
 

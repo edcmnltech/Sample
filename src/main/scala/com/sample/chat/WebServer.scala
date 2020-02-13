@@ -11,10 +11,10 @@ import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{CompletionStrategy, IOResult, Materializer, OverflowStrategy}
 import akka.util.ByteString
 import com.sample.chat.User.{IncomingMessage, OutgoingMessage}
-import com.sample.chat.model.ChatHistory
+import com.sample.chat.repository.ChatHistory
 
 import scala.concurrent.duration._
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor, Future}
 import scala.io.StdIn
 
 final case class TextWithAuthor(text: String, author: String)
@@ -27,13 +27,6 @@ object WebServer extends App {
 
     val chatRoom1 = system.actorOf(ChatRoom.props, "chat1")
     val chatRoom2 = system.actorOf(ChatRoom.props, "chat2")
-
-    def newUser(chatRoomRef: ActorRef, nickname: String): Flow[Message, Message, NotUsed] = {
-      val userActor = system.actorOf(Props(new User(chatRoomRef, nickname)), nickname)
-      val chatRoomName = chatRoomRef.path.name
-
-      Flow.fromSinkAndSource(incomingMessages(userActor, nickname, chatRoomName), outgoingMessages(userActor, chatRoomName))
-    }
 
     val route: Route =
       path("chat" / Segment / "nickname" / Segment) { (chatRoomName, nickname) =>
@@ -50,7 +43,7 @@ object WebServer extends App {
         }
       }
 
-    val binding = Await.result(Http().bindAndHandle(route, "localhost", 8080), 3.seconds)
+    val binding = Await.result(Http().bindAndHandle(route, "0.0.0.0", 8080), 3.seconds)
 
     println("Server started...")
     StdIn.readLine()
@@ -80,6 +73,7 @@ object WebServer extends App {
 
     Flow[Message].mapAsync(parallelism) {
       case TextMessage.Strict(text) => Future.successful(Some(IncomingMessage(s"$nickname : $text")))
+      //TODO: handle TextMessage.Stream
       case bm: BinaryMessage =>
         bm.dataStream.runWith(Sink.ignore)
         Future.successful(None) }
@@ -111,10 +105,11 @@ object WebServer extends App {
     historySource.concat(outgoingMessageSource)
   }
 
-  def rejectionHandler: RejectionHandler = {
-    RejectionHandler.newBuilder()
-      .handleNotFound(complete((StatusCodes.NotFound, "Page not found")))
-      .result()
+  def newUser(chatRoomRef: ActorRef, nickname: String)(implicit system: ActorSystem, ec: ExecutionContext): Flow[Message, Message, NotUsed] = {
+    val userActor = system.actorOf(Props(new User(chatRoomRef, nickname)), nickname)
+    val chatRoomName = chatRoomRef.path.name
+
+    Flow.fromSinkAndSource(incomingMessages(userActor, nickname, chatRoomName), outgoingMessages(userActor, chatRoomName))
   }
 
   start()
