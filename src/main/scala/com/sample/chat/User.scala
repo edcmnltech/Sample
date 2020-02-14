@@ -1,39 +1,38 @@
 package com.sample.chat
 
-import akka.actor.{Actor, ActorRef, DeadLetter, UnhandledMessage}
-import akka.http.scaladsl.model.ws.TextMessage
-import com.sample.chat.User.{Connected, IncomingMessage, OutgoingMessage}
+import akka.NotUsed
+import akka.actor.{Actor, ActorRef, ActorSystem, DeadLetter, Props, UnhandledMessage}
+import akka.http.scaladsl.model.ws.{Message, TextMessage}
+import akka.stream.scaladsl.Flow
+import com.sample.chat.User.{Connected, IncomingMessage, OutgoingMessage, UserName}
+import com.sample.chat.WebServer.{incomingMessages, outgoingMessages}
+import akka.http.scaladsl.model.ws.Message
+
+import scala.concurrent.ExecutionContext
 
 object User {
+  final case class UserName(value: String) extends AnyVal
   final case class Connected(outgoing: ActorRef)
   final case class IncomingMessage(text: String)
   final case class OutgoingMessage(text: String)
 }
 
-import akka.http.scaladsl.model.ws.Message
-
-class User(chatRoom: ActorRef, nickname: String) extends Actor {
+class User(chatRoom: ChatRoom.Metadata, userName: UserName) extends Actor {
 
   def receive: Receive = {
     case Connected(outgoing) =>
-      println(s"user created: $nickname")
+      println(s"user created: ${userName}")
       context.become(connected(outgoing))
-      chatRoom ! ChatRoom.Join
+      chatRoom.actorRef ! ChatRoom.Join
   }
 
   def connected(outgoing: ActorRef): Receive = {
     case IncomingMessage(text) =>
-      println(s"msg in <- $chatRoom")
-      chatRoom ! ChatRoom.ChatMessage(text)
+      println(s"msg in <- ${chatRoom.actorRef}")
+      chatRoom.actorRef ! ChatRoom.ChatMessage(text)
     case ChatRoom.ChatMessage(text) =>
       println(s"msg out -> $outgoing")
       outgoing ! OutgoingMessage(text)
-    case d: DeadLetter =>
-      println(s"dead letter sender: ${d.sender} recepient: ${d.recipient} messsage: ${d.message}")
-    case u: UnhandledMessage =>
-      println(s"dead letter sender: ${u.sender} recepient: ${u.recipient} messsage: ${u.message}")
-    case x: Message =>
-      println(s"default $x")
   }
 
 }
