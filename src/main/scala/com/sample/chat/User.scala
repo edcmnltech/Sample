@@ -1,12 +1,13 @@
 package com.sample.chat
 
 import akka.NotUsed
-import akka.actor.{Actor, ActorRef, ActorSystem, DeadLetter, Props, UnhandledMessage}
+import akka.actor.{Actor, ActorRef, ActorSystem, DeadLetter, PoisonPill, Props, Terminated, UnhandledMessage}
 import akka.http.scaladsl.model.ws.{Message, TextMessage}
 import akka.stream.scaladsl.Flow
 import com.sample.chat.User.{Connected, IncomingMessage, OutgoingMessage, UserName}
 import com.sample.chat.WebServer.{incomingMessages, outgoingMessages}
 import akka.http.scaladsl.model.ws.Message
+import akka.stream.CompletionStrategy
 
 import scala.concurrent.ExecutionContext
 
@@ -33,6 +34,10 @@ class User(chatRoom: ChatRoom.Metadata, userName: UserName) extends Actor {
     case ChatRoom.ChatMessage(text) =>
       println(s"msg out -> $outgoing")
       outgoing ! OutgoingMessage(text)
+    case a: CompletionStrategy =>
+      self ! PoisonPill
+    case wth =>
+      println(s"what kind of message $wth")
   }
 
 }

@@ -19,9 +19,9 @@ class ChatRoom extends Actor {
     case Join =>
       println("user joined")
       users += sender()
-      //context.watch(sender())
+      context.watch(sender())
     case Terminated(user) =>
-      println("user terminated")
+      println(s"user terminated $user")
       users -= user
     case msg: ChatMessage =>
       println("sending messages to all users in chatroom")
