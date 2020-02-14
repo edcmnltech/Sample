@@ -1,6 +1,6 @@
 package com.sample.chat
 
-import akka.actor.{Actor, ActorRef, ActorSystem, DeadLetter, Props, Terminated}
+import akka.actor.{Actor, ActorRef, Props, Terminated}
 import com.sample.chat.ChatRoom.{ChatMessage, Join}
 
 object ChatRoom {

@@ -1,15 +1,8 @@
 package com.sample.chat
 
-import akka.NotUsed
-import akka.actor.{Actor, ActorRef, ActorSystem, DeadLetter, PoisonPill, Props, Terminated, UnhandledMessage}
-import akka.http.scaladsl.model.ws.{Message, TextMessage}
-import akka.stream.scaladsl.Flow
-import com.sample.chat.User.{Connected, IncomingMessage, OutgoingMessage, UserName}
-import com.sample.chat.WebServer.{incomingMessages, outgoingMessages}
-import akka.http.scaladsl.model.ws.Message
+import akka.actor.{Actor, ActorRef, PoisonPill}
 import akka.stream.CompletionStrategy
-
-import scala.concurrent.ExecutionContext
+import com.sample.chat.User.{Connected, IncomingMessage, OutgoingMessage, UserName}
 
 object User {
   final case class UserName(value: String) extends AnyVal

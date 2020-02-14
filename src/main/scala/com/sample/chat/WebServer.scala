@@ -3,10 +3,9 @@ package com.sample.chat
 import akka.NotUsed
 import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{MalformedQueryParamRejection, RejectionHandler, RequestContext, Route, RouteResult, ValidationRejection}
+import akka.http.scaladsl.server.{Route, ValidationRejection}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{CompletionStrategy, IOResult, Materializer, OverflowStrategy}
 import akka.util.ByteString
