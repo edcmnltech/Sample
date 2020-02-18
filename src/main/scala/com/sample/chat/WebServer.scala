@@ -1,5 +1,7 @@
 package com.sample.chat
 
+import java.sql.SQLIntegrityConstraintViolationException
+
 import akka.NotUsed
 import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.http.scaladsl.Http
@@ -11,8 +13,9 @@ import akka.stream.{CompletionStrategy, IOResult, Materializer, OverflowStrategy
 import akka.util.ByteString
 import com.sample.chat.ChatRoom.ChatRoomName
 import com.sample.chat.User.{IncomingMessage, OutgoingMessage, UserName}
-import com.sample.chat.repository.{ChatHistory, ChatRoomRepository, table}
+import com.sample.chat.repository.{ChatHistory, ChatMessageRepository, ChatRoomRepository, table}
 
+import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor, Future}
 import scala.io.StdIn
@@ -36,13 +39,26 @@ object WebServer extends App {
               case Some(validChatRoom) => handleWebSocketMessages(addUserToChatRoom(validChatRoom, newUser))
               case None => reject(new ValidationRejection("This didn't work."))
             }
+          } ~
+          post {
+            ChatRoomRepository.insert(table.ChatRoom(selectedRoom.value, newUser.value)).onComplete {
+              case Success(count) if count > 0 => println(s"added $count record")
+              case Failure(exception) => exception match {
+                case e: SQLIntegrityConstraintViolationException => println("duplicate chat name for user")
+                case otherException => println(otherException)
+              }
+            }
+            complete("post post post")
           }
         }
       }
 
-    val binding = Await.result(Http().bindAndHandle(route, "0.0.0.0", 8080), 3.seconds)
+    ChatRoomRepository.selectAll.foreach(println)
+    val host = "0.0.0.0"
+    val port = 8080
+    val binding = Await.result(Http().bindAndHandle(route, host, port), 3.seconds)
 
-    println("Server started...")
+    println(s"Server started... at $host:$port")
     StdIn.readLine()
     system.terminate()
   }
@@ -67,7 +83,9 @@ object WebServer extends App {
     val parallelism = 4
     val streamedMessageTimeout = 5.seconds
     val actorSink: Sink[IncomingMessage, NotUsed] = Sink.actorRef[User.IncomingMessage](userActor, CompletionStrategy.immediately, logError)
-    val historySink: Sink[ByteString, Future[IOResult]] = ChatHistory.load(chatRoom.name)
+    val historySink = Flow[IncomingMessage].mapAsync(2) { (i: IncomingMessage) =>
+      ChatMessageRepository.insert(table.ChatMessage(user.value, i.text))
+    }
 
     Flow[Message].mapAsync(parallelism) {
       case TextMessage.Strict(text) => Future.successful(Some(IncomingMessage(s"${user.value} : $text")))
@@ -79,9 +97,8 @@ object WebServer extends App {
         bm.dataStream.runWith(Sink.ignore)
         Future.successful(None)
     }.collect { case Some(msg) => msg }
-      .via(Flow[IncomingMessage].map(im => ByteString(im.text + newLine)))
-      .alsoToMat(historySink)(Keep.right)
-      .viaMat(Flow[ByteString].map(s => IncomingMessage(s.utf8String)))(Keep.right)
+      .via(historySink)
+      .viaMat(Flow[table.ChatMessage].map(s => IncomingMessage(s"${s.sender} : ${s.message}")))(Keep.right)
       .to(actorSink)
   }
 
