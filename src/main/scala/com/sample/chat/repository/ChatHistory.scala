@@ -6,8 +6,11 @@ import akka.stream.scaladsl.{FileIO, Framing, Sink, Source}
 import akka.stream.{IOResult, Materializer}
 import akka.util.ByteString
 import com.sample.chat.ChatRoom.ChatRoomName
+import slick.lifted.{Query, TableQuery}
+import slick.dbio.DBIOAction._
+import slick.jdbc.MySQLProfile._
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
 object ChatHistory {
 

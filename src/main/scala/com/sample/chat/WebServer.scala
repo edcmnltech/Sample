@@ -11,11 +11,12 @@ import akka.stream.{CompletionStrategy, IOResult, Materializer, OverflowStrategy
 import akka.util.ByteString
 import com.sample.chat.ChatRoom.ChatRoomName
 import com.sample.chat.User.{IncomingMessage, OutgoingMessage, UserName}
-import com.sample.chat.repository.ChatHistory
+import com.sample.chat.repository.{ChatHistory, ChatRoomRepository, table}
 
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor, Future}
 import scala.io.StdIn
+import scala.util.{Failure, Success}
 
 object WebServer extends App {
 
@@ -28,7 +29,7 @@ object WebServer extends App {
     val validRooms = List(chatRoom1, chatRoom2)
 
     val route: Route =
-      path("chat" / Segment / "nickname" / Segment) { (c: String, n: String) =>
+      path("chat" / Segment / "nickname" / Segment) { (c, n) =>
         convert(c, n) { (selectedRoom, newUser) =>
           get {
             validateChatRoom(selectedRoom, validRooms) match {
