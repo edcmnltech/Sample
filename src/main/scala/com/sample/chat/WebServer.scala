@@ -12,7 +12,7 @@ import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{CompletionStrategy, IOResult, Materializer, OverflowStrategy}
 import akka.util.Timeout
 import com.sample.chat.User.{IncomingMessage, OutgoingMessage, UserName}
-import com.sample.chat.repository.table.{ChatRoomActorRef, ChatRoomName}
+import com.sample.chat.repository.table.{ChatRoomActorRef, ChatRoomId, ChatRoomName}
 import com.sample.chat.repository.{ChatHistory, ChatMessageRepository, ChatRoomRepository, table}
 
 import scala.concurrent.duration._
@@ -63,7 +63,7 @@ object WebServer extends App {
 
   def addUserToChatRoom(chatRoom: table.ChatRoomActorRef, user: UserName)(implicit system: ActorSystem, ec: ExecutionContext): Flow[Message, Message, NotUsed] = {
     val userActorRef: ActorRef = system.actorOf(Props(new User(chatRoom, user)), user.value) //attaching of User to a ChatRoom
-    Flow.fromSinkAndSource(incomingMessages(userActorRef, user, chatRoom), outgoingMessages(userActorRef, chatRoom.meta.name))
+    Flow.fromSinkAndSource(incomingMessages(userActorRef, user, chatRoom), outgoingMessages(userActorRef, chatRoom.meta.id))
   }
 
   def validateChatRoom(name: ChatRoomName)(implicit executionContext: ExecutionContext, system: ActorSystem, timeout: Timeout = Timeout(5.seconds)): Future[ChatRoomActorRef] =
@@ -113,8 +113,8 @@ object WebServer extends App {
    * one time setting up of the source
    * ability of the actor to send message to a chatroom, then sending to all users connected to it
    */
-  def outgoingMessages(userActor: ActorRef, chatRoomName: ChatRoomName)(implicit mat: Materializer, ec: ExecutionContext): Source[Message, Future[IOResult]] = {
-    val historySource: Source[Message, Future[IOResult]] = ChatHistory.unload(chatRoomName).map(TextMessage.Strict)
+  def outgoingMessages(userActor: ActorRef, chatRoomName: ChatRoomId)(implicit mat: Materializer, ec: ExecutionContext): Source[Message, NotUsed] = {
+    val historySource = Source.fromPublisher(ChatMessageRepository.selectByRoomId(chatRoomName)).map(a => TextMessage.Strict(a.message))
     val outgoingMessageSource = Source.actorRef[User.OutgoingMessage](100, OverflowStrategy.fail)
       .mapMaterializedValue { outActor =>
         userActor ! User.Connected(outActor)
