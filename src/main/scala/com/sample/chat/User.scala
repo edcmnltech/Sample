@@ -3,6 +3,7 @@ package com.sample.chat
 import akka.actor.{Actor, ActorRef, PoisonPill}
 import akka.stream.CompletionStrategy
 import com.sample.chat.User.{Connected, IncomingMessage, OutgoingMessage, UserName}
+import com.sample.chat.repository.table.ChatRoomActorRef
 
 object User {
   final case class UserName(value: String) extends AnyVal
@@ -11,7 +12,7 @@ object User {
   final case class OutgoingMessage(text: String)
 }
 
-class User(chatRoom: ChatRoom.Metadata, userName: UserName) extends Actor {
+class User(chatRoom: ChatRoomActorRef, userName: UserName) extends Actor {
 
   def receive: Receive = {
     case Connected(outgoing) =>

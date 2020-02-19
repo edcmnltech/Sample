@@ -1,13 +1,13 @@
 package com.sample.chat
 
-import akka.actor.{Actor, ActorRef, Props, Terminated}
+import akka.actor.{Actor, ActorRef, PoisonPill, Props, Terminated}
+import akka.stream.CompletionStrategy
 import com.sample.chat.ChatRoom.{ChatMessage, Join}
+import com.sample.chat.repository.table.{ChatRoomId, ChatRoomName}
 
 object ChatRoom {
-  final case class ChatRoomName(value: String) extends AnyVal
   final case object Join
   final case class ChatMessage(message: String)
-  final case class Metadata(actorRef: ActorRef, name: ChatRoomName)
 
   def props(): Props = Props(classOf[ChatRoom])
 }
@@ -26,5 +26,7 @@ class ChatRoom extends Actor {
     case msg: ChatMessage =>
       println("sending messages to all users in chatroom")
       users.foreach(_ ! msg)
+    case a: CompletionStrategy =>
+      self ! PoisonPill
   }
 }

@@ -5,7 +5,7 @@ import java.nio.file.{Paths, StandardOpenOption}
 import akka.stream.scaladsl.{FileIO, Framing, Sink, Source}
 import akka.stream.{IOResult, Materializer}
 import akka.util.ByteString
-import com.sample.chat.ChatRoom.ChatRoomName
+import com.sample.chat.repository.table.ChatRoomName
 import slick.lifted.{Query, TableQuery}
 import slick.dbio.DBIOAction._
 import slick.jdbc.MySQLProfile._

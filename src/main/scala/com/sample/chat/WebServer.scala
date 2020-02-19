@@ -10,12 +10,11 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Route, ValidationRejection}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{CompletionStrategy, IOResult, Materializer, OverflowStrategy}
-import akka.util.ByteString
-import com.sample.chat.ChatRoom.ChatRoomName
+import akka.util.Timeout
 import com.sample.chat.User.{IncomingMessage, OutgoingMessage, UserName}
+import com.sample.chat.repository.table.{ChatRoomActorRef, ChatRoomName}
 import com.sample.chat.repository.{ChatHistory, ChatMessageRepository, ChatRoomRepository, table}
 
-import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor, Future}
 import scala.io.StdIn
@@ -23,25 +22,25 @@ import scala.util.{Failure, Success}
 
 object WebServer extends App {
 
+  private var chatRooms: Set[ChatRoomActorRef] = Set.empty
+
   def start(): Unit = {
     implicit val system: ActorSystem = ActorSystem("chat-actor-system")
     implicit val ec: ExecutionContextExecutor = ExecutionContext.global
-
-    val chatRoom1 = system.actorOf(ChatRoom.props(), "chat1")
-    val chatRoom2 = system.actorOf(ChatRoom.props(), "chat2")
-    val validRooms = List(chatRoom1, chatRoom2)
 
     val route: Route =
       path("chat" / Segment / "nickname" / Segment) { (c, n) =>
         convert(c, n) { (selectedRoom, newUser) =>
           get {
-            validateChatRoom(selectedRoom, validRooms) match {
-              case Some(validChatRoom) => handleWebSocketMessages(addUserToChatRoom(validChatRoom, newUser))
-              case None => reject(new ValidationRejection("This didn't work."))
+            onComplete(validateChatRoom(selectedRoom)) {
+              case Success(validChatRoom) => handleWebSocketMessages(addUserToChatRoom(validChatRoom, newUser))
+              case Failure(exception) =>
+                println(s"ERORR: $exception")
+                reject(new ValidationRejection("This didn't work."))
             }
           } ~
           post {
-            ChatRoomRepository.insert(table.ChatRoom(selectedRoom.value, newUser.value)).onComplete {
+            ChatRoomRepository.insert(table.ChatRoom(selectedRoom, newUser.value)).onComplete {
               case Success(count) if count > 0 => println(s"added $count record")
               case Failure(exception) => exception match {
                 case e: SQLIntegrityConstraintViolationException => println("duplicate chat name for user")
@@ -53,38 +52,44 @@ object WebServer extends App {
         }
       }
 
-    ChatRoomRepository.selectAll.foreach(println)
     val host = "0.0.0.0"
     val port = 8080
     val binding = Await.result(Http().bindAndHandle(route, host, port), 3.seconds)
 
-    println(s"Server started... at $host:$port")
+    system.log.info("Server started at... http://{}:{}/", host, port)
     StdIn.readLine()
     system.terminate()
   }
 
-  def addUserToChatRoom(chatRoom: ChatRoom.Metadata, user: UserName)(implicit system: ActorSystem, ec: ExecutionContext): Flow[Message, Message, NotUsed] = {
+  def addUserToChatRoom(chatRoom: table.ChatRoomActorRef, user: UserName)(implicit system: ActorSystem, ec: ExecutionContext): Flow[Message, Message, NotUsed] = {
     val userActorRef: ActorRef = system.actorOf(Props(new User(chatRoom, user)), user.value) //attaching of User to a ChatRoom
-    Flow.fromSinkAndSource(incomingMessages(userActorRef, user, chatRoom), outgoingMessages(userActorRef, chatRoom.name))
+    Flow.fromSinkAndSource(incomingMessages(userActorRef, user, chatRoom), outgoingMessages(userActorRef, chatRoom.meta.name))
   }
 
-  def validateChatRoom(chatRoomName: ChatRoomName, chatRooms: List[ActorRef]): Option[ChatRoom.Metadata] =
-    chatRooms
-      .collectFirst { case room if (room.path.name == chatRoomName.value) => room }
-      .map(ChatRoom.Metadata(_, chatRoomName))
+  def validateChatRoom(name: ChatRoomName)(implicit executionContext: ExecutionContext, system: ActorSystem, timeout: Timeout = Timeout(5.seconds)): Future[ChatRoomActorRef] =
+   ChatRoomRepository.selectByName(name) map { room =>
+     chatRooms.find(_.meta == room) match {
+       case None =>
+         val actorRef = system.actorOf(ChatRoom.props(), room.name.value)
+         val chatRoomActorRef = ChatRoomActorRef(actorRef, room)
+         chatRooms += chatRoomActorRef
+         chatRoomActorRef
+       case Some(r) => r
+     }
+   }
 
   /**
    * chatroom's ActorRef is hooked via props of a User, every user must be in a chat room
    * sink, exactly one input, requesting, accepting data elements
    * ability of the webserver actor to receive message from a websocket request
    */
-  def incomingMessages(userActor: ActorRef, user: UserName, chatRoom: ChatRoom.Metadata)(implicit mat: Materializer, ec: ExecutionContext): Sink[Message, NotUsed] = {
+  def incomingMessages(userActor: ActorRef, user: UserName, chatRoom: ChatRoomActorRef)(implicit mat: Materializer, ec: ExecutionContext): Sink[Message, NotUsed] = {
     val newLine = "\n"
     val parallelism = 4
     val streamedMessageTimeout = 5.seconds
     val actorSink: Sink[IncomingMessage, NotUsed] = Sink.actorRef[User.IncomingMessage](userActor, CompletionStrategy.immediately, logError)
     val historySink = Flow[IncomingMessage].mapAsync(2) { (i: IncomingMessage) =>
-      ChatMessageRepository.insert(table.ChatMessage(user.value, i.text))
+      ChatMessageRepository.insert(table.ChatMessage(user.value, i.text, chatRoom.meta.id))
     }
 
     Flow[Message].mapAsync(parallelism) {
@@ -122,7 +127,7 @@ object WebServer extends App {
   def logError: Throwable => Any =  { throwable: Throwable => print(s"Something went wrong: ${throwable.getMessage}") }
   def throwError: Any => Exception = _  => new Exception("Something went wrong")
   def completionImmediatelyMatcher: Any => CompletionStrategy = _ => CompletionStrategy.immediately
-  def convert(chatRoomName: String, userName: String)(f: (ChatRoomName, UserName) => Route): Route = f(ChatRoomName(chatRoomName), UserName(userName))
+  def convert(chatRoomName: String, userName: String)(f: (ChatRoomName, UserName) => Route): Route = f(new ChatRoomName(chatRoomName), UserName(userName))
 
   start()
 }
