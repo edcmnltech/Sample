@@ -1,28 +1,78 @@
 <html>
-    <head>
-        <script src="https://code.jquery.com/jquery-2.2.3.min.js"
-                integrity="sha256-a23g1Nt4dtEYOj7bR+vTu7+T8VP13humZFBJNIYoEJo="
-                crossorigin="anonymous"></script>
-        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">        
-        <title>Chat</title>
-    </head>
-    <body>
-        <div class="container">
-            <div class="row mx-md-n5">
-              <div class="col-sm px-md-n5">
-                <div class="overflow-auto" style="height:300px">
-                    <ul id="messages" class="list-group">
-                        <li class='list-group-item'><a href="chat-client.html#chat1">Chatroom 1</a></li>
-                        <li class='list-group-item'><a href="chat-client.html#chat2">Chatroom 2</a></li>
-                    </ul>
-                </div>
-              </div>
+<head>
+    <script src="https://code.jquery.com/jquery-2.2.3.min.js"
+            integrity="sha256-a23g1Nt4dtEYOj7bR+vTu7+T8VP13humZFBJNIYoEJo="
+            crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
+          integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous"/>
+    <title>Chat</title>
+</head>
+<body>
+<div class="container">
+    <div class="row mx-md-n5">
+        <div class="col-sm px-md-n5">
+            <div class="overflow-auto" style="height:300px">
+                <ul id="chatrooms" class="list-group"></ul>
             </div>
-          </div>
-        </form>
+        </div>
+        <div class="col-sm px-md-n5">
+            <form id="addRoomForm">
+                <div class="form-group">
+                    <label for="chatroomname">Add a new chat room:</label>
+                    <input type="text" class="form-control" id="chatroomname" placeholder="Awesome chatroom name"/>
+                    <label for="nickname">Nickname:</label>
+                    <input type="text" class="form-control" id="nickname" placeholder="Current user"/>
+                    <button id="add" class="btn btn-primary btn-lg btn-block">Add</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
-        <script language="javascript">
-            
-        </script>
-    </body>
+<script language="javascript">
+
+    var url = "http://192.168.147.165:8080"
+
+    var items = $("#chatrooms");
+    function reloadJson(){ $.getJSON(url+"/chatrooms", function(data){
+          $.each( data, function( key, val ) {
+          items.prepend( "<li class='list-group-item' id='" + key + "'><a href='chat-client.html#"+val.name.value+"'>" + val.name.value + "</a></li>" );
+          });
+    });
+    }
+    reloadJson();
+
+
+    var $add = $("#add");
+    var $chatroomname = $("#chatroomname");
+    var $nickname = $("#nickname");
+    $add.removeAttr();
+
+    $("#addRoomForm").submit(function(event){
+        event.preventDefault();
+        var post_url = url+"/chat/"+$chatroomname.val()+"/nickname/"+$nickname.val();
+        var form_data = $(this).serialize();
+
+        $.ajax({
+            url: post_url,
+            type: 'post',
+            success: function(result, status, xhr){
+                $("#chatrooms").fadeOut(500, function() {
+                    $chatroomname.text = "";
+                    $nickname.text = "";
+                    $("#chatrooms").empty();
+                    reloadJson();
+                    $("#chatrooms").fadeIn().delay(500);
+                });
+                console.log("Success saving of new chatroom");
+            },
+            error: function(jqXHR, textStatus, errorThrown) {
+               console.log("Error saving of new chatroom" + textStatus, errorThrown);
+            }
+        });
+
+    });
+
+</script>
+</body>
 </html>

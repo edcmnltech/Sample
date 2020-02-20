@@ -3,72 +3,71 @@
     <script src="https://code.jquery.com/jquery-2.2.3.min.js"
             integrity="sha256-a23g1Nt4dtEYOj7bR+vTu7+T8VP13humZFBJNIYoEJo="
             crossorigin="anonymous"></script>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
+          integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
     <title>Chat</title>
 </head>
 <body>
 <div class="container">
-        <div class="col-sm px-md-n5 mx-auto">
-            <div>
-                <h5 id="chatroom" class="card-header">Chat Room: </h5>
-                <div class="overflow-auto card" style="height:300px">
-                    <ul id="messages" class="list-group"></ul>
-                </div>
+    <div class="col-sm px-md-n5 mx-auto">
+        <div>
+            <h5 id="chatroom" class="card-header">Chat Room: </h5>
+            <div class="overflow-auto card" style="height:300px">
+                <ul id="messages" class="list-group"></ul>
             </div>
-            <div class="card form-group">
-                <h5 id="nickname" class="card-header">Nickname: </h5>
-                <label for="message" class="mr-3">Type Message:</label>
-                <textarea class="form-control" id="message" rows="3"></textarea>
-                <button id="send" class="btn btn-primary btn-lg btn-block">Send</button>
-              </div>
-            <div class="form-group">
-                
-            </div>
+        </div>
+        <div class="card form-group">
+            <h5 id="nickname" class="card-header">Nickname: </h5>
+            <label for="message" class="mr-3">Type Message:</label>
+            <textarea class="form-control" id="message" rows="3"></textarea>
+            <button id="send" class="btn btn-primary btn-lg btn-block">Send</button>
+        </div>
+        <div class="form-group">
+
+        </div>
     </div>
-    </div>
+</div>
 </div>
 </form>
 
 <script language="javascript">
 
-            var chatroom = $(location).attr('href').split('#');
-            var last = chatroom[chatroom.length - 1];
-            var nickname = prompt("Enter your nickname");
+    var chatroom = $(location).attr('href').split('#');
+    var last = chatroom[chatroom.length - 1];
+    var nickname = prompt("Enter your nickname");
 
-            //var host = "192.168.147.165"
-            var host = "localhost"
-            //var host = "0.0.0.0"
-            var port = "8080"
-            var url = host+":"+port
+    //var host = "192.168.147.165"
+    var host = "localhost"
+    //var host = "0.0.0.0"
+    var port = "8080"
+    var url = host+":"+port
 
-            var $messages = $("#messages"),
-                $send = $("#send"),
-                $message = $("#message"),
-                addr = 'ws://test:1234@'+url+'/chat/'+last+'/nickname/'+nickname
-                connection = new WebSocket(addr)
-                $send.prop("disabled",true)
-            
-            $("#chatroom").html("Chat Room: "+last)    
-            $("#nickname").html("Nickname: "+nickname);
+    var $messages = $("#messages"),
+        $send = $("#send"),
+        $message = $("#message"),
+        addr = 'ws://test:1234@'+url+'/chat/'+last+'/nickname/'+nickname
+        connection = new WebSocket(addr)
+        $send.prop("disabled",true)
 
-
-            connection.onopen = function () {
-                $send.prop("disabled",false)
-                $messages.append($("<li class='list-group-item'>Connected</li>"))
-                $send.on('click', function() {
-                    var text = $message.val()
-                    $message.val("")
-                    connection.send(text)
-                })
-            }
-            connection.onerror = function (error) { console.log('WebSocket Error ', error) }
-            connection.onmessage = function (event) {
-                $messages.append($("<li class='list-group-item'>" + event.data + "</li>"))
-                document.getElementById('messages').lastChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
-            }
+    $("#chatroom").html("Chat Room: "+last)
+    $("#nickname").html("Nickname: "+nickname);
 
 
+    connection.onopen = function () {
+        $send.prop("disabled",false)
+        $messages.append($("<li class='list-group-item'>Connected</li>"))
+        $send.on('click', function() {
+            var text = $message.val()
+            $message.val("")
+            connection.send(text)
+        })
+    }
+    connection.onerror = function (error) { console.log('WebSocket Error ', error) }
+    connection.onmessage = function (event) {
+        $messages.append($("<li class='list-group-item'>" + event.data + "</li>"))
+        document.getElementById('messages').lastChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
 
-        </script>
+</script>
 </body>
 </html>

@@ -9,18 +9,28 @@ import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Route, ValidationRejection}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
-import akka.stream.{CompletionStrategy, IOResult, Materializer, OverflowStrategy}
+import akka.stream.{CompletionStrategy, Materializer, OverflowStrategy}
 import akka.util.Timeout
 import com.sample.chat.User.{IncomingMessage, OutgoingMessage, UserName}
 import com.sample.chat.repository.table.{ChatRoomActorRef, ChatRoomId, ChatRoomName}
-import com.sample.chat.repository.{ChatHistory, ChatMessageRepository, ChatRoomRepository, table}
+import com.sample.chat.repository.{ChatMessageRepository, ChatRoomRepository, table}
+import com.sample.chat.util.CORSHandler
+import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import io.circe.generic.auto._
+import io.circe.syntax._
 
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor, Future}
 import scala.io.StdIn
 import scala.util.{Failure, Success}
 
-object WebServer extends App {
+/**
+ * create chat room page
+ * check multiple user
+ *
+ */
+
+object WebServer extends App with CORSHandler {
 
   private var chatRooms: Set[ChatRoomActorRef] = Set.empty
 
@@ -29,7 +39,7 @@ object WebServer extends App {
     implicit val ec: ExecutionContextExecutor = ExecutionContext.global
 
     val route: Route =
-      path("chat" / Segment / "nickname" / Segment) { (c, n) =>
+      corsHandler(path("chat" / Segment / "nickname" / Segment) { (c, n) =>
         convert(c, n) { (selectedRoom, newUser) =>
           get {
             onComplete(validateChatRoom(selectedRoom)) {
@@ -40,6 +50,7 @@ object WebServer extends App {
             }
           } ~
           post {
+            println("punta dito")
             ChatRoomRepository.insert(table.ChatRoom(selectedRoom, newUser.value)).onComplete {
               case Success(count) if count > 0 => println(s"added $count record")
               case Failure(exception) => exception match {
@@ -50,9 +61,18 @@ object WebServer extends App {
             complete("post post post")
           }
         }
-      }
+      }) ~
+      corsHandler(path("chatrooms"){
+        get {
+          onComplete(ChatRoomRepository.selectAll) {
+            case Success(value) => complete(value.asJson)
+            case Failure(exception) => reject(new ValidationRejection("This didn't work."))
+          }
+        }
+      })
 
     val host = "0.0.0.0"
+//    val host = "192.168.147.165"
     val port = 8080
     val binding = Await.result(Http().bindAndHandle(route, host, port), 3.seconds)
 
@@ -131,3 +151,4 @@ object WebServer extends App {
 
   start()
 }
+

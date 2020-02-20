@@ -12,9 +12,7 @@ object ChatRoomRepository extends MySqlRepository {
 
   val chatRoomTable = TableQuery[ChatRoomTable]
 
-  def selectAll: DatabasePublisher[ChatRoom] = {
-    db.stream(chatRoomTable.result)
-  }
+  def selectAll: Future[Seq[ChatRoom]] = db.run(chatRoomTable.result)
 
   def selectByName(name: ChatRoomName)(implicit ec: ExecutionContext): Future[ChatRoom] = {
     val query = chatRoomTable.filter(_.name === name).result.headOption
