@@ -88,12 +88,12 @@ object WebServer extends App {
     val parallelism = 4
     val streamedMessageTimeout = 5.seconds
     val actorSink: Sink[IncomingMessage, NotUsed] = Sink.actorRef[User.IncomingMessage](userActor, CompletionStrategy.immediately, logError)
-    val historySink = Flow[IncomingMessage].mapAsync(2) { (i: IncomingMessage) =>
-      ChatMessageRepository.insert(table.ChatMessage(user.value, i.text, chatRoom.meta.id))
+    val historySink = Flow[IncomingMessage].mapAsync(2) { incoming =>
+      ChatMessageRepository.insert(table.ChatMessage(user.value, incoming.text, chatRoom.meta.id))
     }
 
     Flow[Message].mapAsync(parallelism) {
-      case TextMessage.Strict(text) => Future.successful(Some(IncomingMessage(s"${user.value} : $text")))
+      case TextMessage.Strict(text) => Future.successful(Some(IncomingMessage(text)))
       case TextMessage.Streamed(textStream) => textStream
         .completionTimeout(streamedMessageTimeout)
         .runFold(StringBuilder.newBuilder)((builder, s) => builder.append(s))

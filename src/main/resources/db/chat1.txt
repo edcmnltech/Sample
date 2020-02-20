@@ -13,3 +13,135 @@ keepalive : aaa
 keepalive : co sie stalo
 agnieszka : nic
 keepalive : ping
+123456 : 2222
+13 : 1111
+2345 : aaa
+2345 : aaa
+2345 : aa
+2345 : aa
+567 : aaq
+2345 : asdfasdf
+567 : aaaa
+2345 : 11111
+2345 : 2234252345
+2345 : 12767568568
+2345 : 567324
+123456 : 1234134
+123456 : 12312432
+123456 : 55576993
+123456 : 12321314
+123456 : 1111
+13 : 
+13 : 
+13 : 213123123
+2345 : 1123123123
+13 : 1231313
+123456 : 123123123123
+2345 : 12312312312
+13 : 
+13 : 1233333
+123456 : 123123123
+2345 : 
+2345 : 1231231
+13 : 
+13 : 1231312user1 : sample chat
+user1 : sample chat
+
+user1 : hello sample
+
+user1 : 
+user2 : hi user1 from user2
+user3 : hi
+UserName(aaaa) : aaa
+UserName(aaaa) : aaa
+UserName(aaaa) : asdfasdf
+UserName(aaaa) : 
+UserName(aaaa) : 
+UserName(aaaa) : 
+UserName(aaaa) : 
+UserName(aaaa) : 
+UserName(aaaa) : 
+UserName(aaaa) : asdfasdfasdf
+chatty : aaa
+chatty : aaa
+chatty : aaa
+aasdfasdf : elo
+
+123123123 : 111
+123123123 : 1111
+123123123 : 111
+123123123 : 1111
+123123123 : 111
+123123123 : 1
+123123123 : q
+123123123 : qweqwe
+qweqweqwe : 1112431243
+1111 : 1111
+1111 : 12121212121212121212
+1111 : 1123412431243
+1111 : 12341234
+1234 : 12341234
+1234 : 12341243
+2222222 : 11111
+1111 : aaa
+1111 : 1111
+111 : benben
+111 : aaaa
+123 : 123
+123 : 123
+1111 : 1111
+1111 : 
+1111 : 1111
+1111 : 1111
+1111 : 12341234
+1111 : 12341234
+plugin : new message
+212113 : 111
+212113 : 1111
+212113 : 111
+212113 : ping
+212113 : ping
+
+212113 : ping
+212113 : ping ping
+212113 : ping ping
+212113 : ping ping
+212113 : aaa
+212113 : chat 1
+
+jacy : Happy Valentine's Day. 
+212113 : 
+212113 : :D
+
+jacy : 
+212113 : ditto!
+212113 : I think its working now
+212113 : I just try to check what I can do when firewall is enabled
+aaaa : 什么意思i
+jacy : i have reverted the changes for your client
+
+212113 : I'll search about 
+"wss" instead of just "ws" 
+s for security
+
+aaaa : looks nice
+jacy : wss just need to enable ssl and load with private certificate
+212113 : tnx I'll add sticker
+
+jacy : not need for this test
+1234 : asdfasdf
+1234 : chrome-extension://pfdhoblngboilpfeibdedpjgfnlcodoo/index.html
+aaaa : 
+aaaa : aaaa
+aaaa : aaa
+aaaa : aaaa
+aaaa : aaaaa
+aaaa : aaaa
+aaaa : aaa
+aaaa : 
+aaaa : 
+aaaa : 
+aaaa : 
+aaaa : 
+aaaa : 
+aaaa : 

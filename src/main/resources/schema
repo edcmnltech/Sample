@@ -1,0 +1,17 @@
+CREATE TABLE chatroom (
+   id INT NOT NULL AUTO_INCREMENT,
+   name VARCHAR(50),
+   creator VARCHAR(300),
+   PRIMARY KEY (id));
+
+DROP TABLE `deebee`.`chatroom`;
+
+DROP TABLE `deebee`.`chatmessage`;
+CREATE TABLE chatmessage (
+  id INT NOT NULL AUTO_INCREMENT,
+  roomId INT NOT NULL,
+  sender VARCHAR(50),
+  message VARCHAR(300),
+  timeSent LONG,
+  PRIMARY KEY (id));
+
