@@ -22,6 +22,8 @@
                     <input type="text" class="form-control" id="chatroomname" placeholder="Awesome chatroom name"/>
                     <label for="nickname">Nickname:</label>
                     <input type="text" class="form-control" id="nickname" placeholder="Current user"/>
+                    <label for="password">Password:</label>
+                    <input type="password" class="form-control" id="password" placeholder="Password"/>
                     <button id="add" class="btn btn-primary btn-lg btn-block">Add</button>
                 </div>
             </form>
@@ -52,10 +54,12 @@
         event.preventDefault();
         var post_url = url+"/chat/"+$chatroomname.val()+"/nickname/"+$nickname.val();
         var form_data = $(this).serialize();
+        var pass = { value: $("#password").val() }
 
         $.ajax({
             url: post_url,
             type: 'post',
+            contentType: 'application/json',
             success: function(result, status, xhr){
                 $("#chatrooms").fadeOut(500, function() {
                     $chatroomname.text = "";
@@ -68,7 +72,8 @@
             },
             error: function(jqXHR, textStatus, errorThrown) {
                console.log("Error saving of new chatroom" + textStatus, errorThrown);
-            }
+            },
+            data: JSON.stringify(pass)
         });
 
     });

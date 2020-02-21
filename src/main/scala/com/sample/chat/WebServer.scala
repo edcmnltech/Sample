@@ -11,23 +11,26 @@ import akka.http.scaladsl.server.{Route, ValidationRejection}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{CompletionStrategy, Materializer, OverflowStrategy}
 import akka.util.Timeout
-import com.sample.chat.User.{IncomingMessage, OutgoingMessage, UserName}
-import com.sample.chat.repository.table.{ChatRoomActorRef, ChatRoomId, ChatRoomName}
-import com.sample.chat.repository.{ChatMessageRepository, ChatRoomRepository, table}
+import com.sample.chat.User.{IncomingMessage, OutgoingMessage}
+import com.sample.chat.repository.table.{ChatRoomPassword, ChatRoomActorRef, ChatRoomId, ChatRoomName, ChatUser, ChatUserName}
+import com.sample.chat.repository.{ChatMessageRepository, ChatRoomRepository, ChatUserRepository, table}
 import com.sample.chat.util.CORSHandler
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.generic.auto._
 import io.circe.syntax._
 
 import scala.concurrent.duration._
+import scala.concurrent.impl.Promise
 import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor, Future}
 import scala.io.StdIn
 import scala.util.{Failure, Success}
 
 /**
- * create chat room page
- * check multiple user
+ * Add Password per Chatroom and User
  *
+ * https://owasp.org/www-project-cheat-sheets/cheatsheets/Session_Management_Cheat_Sheet.html#Session_ID_Properties
+ * https://owasp.org/www-project-cheat-sheets/cheatsheets/Authentication_Cheat_Sheet.html
+ * FIXME: find alternative way to prevent hadouken code, for comprehension maybe?
  */
 
 object WebServer extends App with CORSHandler {
@@ -40,26 +43,25 @@ object WebServer extends App with CORSHandler {
 
     val route: Route =
       corsHandler(path("chat" / Segment / "nickname" / Segment) { (c, n) =>
-        convert(c, n) { (selectedRoom, newUser) =>
+        convert(c, n) { (selectedRoom, user) =>
           get {
-            onComplete(validateChatRoom(selectedRoom)) {
-              case Success(validChatRoom) => handleWebSocketMessages(addUserToChatRoom(validChatRoom, newUser))
-              case Failure(exception) =>
-                println(s"ERORR: $exception")
-                reject(new ValidationRejection("This didn't work."))
-            }
+            onComplete(validateChatUser(user)) {
+              case Success(validChatUser) =>
+                onComplete(validateChatRoom(selectedRoom)) {
+                  case Success(validChatRoom) => handleWebSocketMessages(addUserToChatRoom(validChatRoom, validChatUser.name))
+                  case Failure(exception) => logAndReject(exception) }
+              case Failure(exception) => logAndReject(exception) }
           } ~
           post {
-            println("punta dito")
-            ChatRoomRepository.insert(table.ChatRoom(selectedRoom, newUser.value)).onComplete {
-              case Success(count) if count > 0 => println(s"added $count record")
-              case Failure(exception) => exception match {
-                case e: SQLIntegrityConstraintViolationException => println("duplicate chat name for user")
-                case otherException => println(otherException)
-              }
-            }
-            complete("post post post")
-          }
+            //FIXME: passing pass in plaintext is unsafe!
+            onComplete(validateChatUser(user)) {
+              case Success(validChatUser) =>
+                onComplete(ChatRoomRepository.insert(table.ChatRoom(selectedRoom, user, new ChatRoomPassword("password")))) {
+                  case Success(count) if count > 0 => complete(s"added $count record")
+                  case Failure(exception) => exception match {
+                    case e: SQLIntegrityConstraintViolationException => reject(throw e)
+                    case otherException => reject(throw otherException) } }
+              case Failure(exception) => logAndReject(exception) } }
         }
       }) ~
       corsHandler(path("chatrooms"){
@@ -81,10 +83,12 @@ object WebServer extends App with CORSHandler {
     system.terminate()
   }
 
-  def addUserToChatRoom(chatRoom: table.ChatRoomActorRef, user: UserName)(implicit system: ActorSystem, ec: ExecutionContext): Flow[Message, Message, NotUsed] = {
+  def addUserToChatRoom(chatRoom: table.ChatRoomActorRef, user: ChatUserName)(implicit system: ActorSystem, ec: ExecutionContext): Flow[Message, Message, NotUsed] = {
     val userActorRef: ActorRef = system.actorOf(Props(new User(chatRoom, user)), user.value) //attaching of User to a ChatRoom
     Flow.fromSinkAndSource(incomingMessages(userActorRef, user, chatRoom), outgoingMessages(userActorRef, chatRoom.meta.id))
   }
+
+  def validateChatUser(username: ChatUserName)(implicit executionContext: ExecutionContext): Future[ChatUser] = ChatUserRepository.selectByName(username)
 
   def validateChatRoom(name: ChatRoomName)(implicit executionContext: ExecutionContext, system: ActorSystem, timeout: Timeout = Timeout(5.seconds)): Future[ChatRoomActorRef] =
    ChatRoomRepository.selectByName(name) map { room =>
@@ -98,12 +102,15 @@ object WebServer extends App with CORSHandler {
      }
    }
 
+  def validateChatRoomPassword(room: table.ChatRoomName, pass: ChatRoomPassword)(implicit executionContext: ExecutionContext, system: ActorSystem): Future[Boolean] =
+    ChatRoomRepository.checkIfPasswordMatch(room, pass)
+
   /**
    * chatroom's ActorRef is hooked via props of a User, every user must be in a chat room
    * sink, exactly one input, requesting, accepting data elements
    * ability of the webserver actor to receive message from a websocket request
    */
-  def incomingMessages(userActor: ActorRef, user: UserName, chatRoom: ChatRoomActorRef)(implicit mat: Materializer, ec: ExecutionContext): Sink[Message, NotUsed] = {
+  def incomingMessages(userActor: ActorRef, user: ChatUserName, chatRoom: ChatRoomActorRef)(implicit mat: Materializer, ec: ExecutionContext): Sink[Message, NotUsed] = {
     val newLine = "\n"
     val parallelism = 4
     val streamedMessageTimeout = 5.seconds
@@ -146,9 +153,12 @@ object WebServer extends App with CORSHandler {
 
   def logError: Throwable => Any =  { throwable: Throwable => print(s"Something went wrong: ${throwable.getMessage}") }
   def throwError: Any => Exception = _  => new Exception("Something went wrong")
+  def logAndReject: Throwable => Route = { exception =>
+    println(s"ERORR: $exception")
+    reject(new ValidationRejection(exception.getMessage))
+  }
   def completionImmediatelyMatcher: Any => CompletionStrategy = _ => CompletionStrategy.immediately
-  def convert(chatRoomName: String, userName: String)(f: (ChatRoomName, UserName) => Route): Route = f(new ChatRoomName(chatRoomName), UserName(userName))
+  def convert(chatRoomName: String, userName: String)(f: (ChatRoomName, ChatUserName) => Route): Route = f(new ChatRoomName(chatRoomName), new ChatUserName(userName))
 
   start()
 }
-

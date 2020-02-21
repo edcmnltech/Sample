@@ -2,17 +2,16 @@ package com.sample.chat
 
 import akka.actor.{Actor, ActorRef, PoisonPill}
 import akka.stream.CompletionStrategy
-import com.sample.chat.User.{Connected, IncomingMessage, OutgoingMessage, UserName}
-import com.sample.chat.repository.table.ChatRoomActorRef
+import com.sample.chat.User.{Connected, IncomingMessage, OutgoingMessage}
+import com.sample.chat.repository.table.{ChatRoomActorRef, ChatUserName}
 
 object User {
-  final case class UserName(value: String) extends AnyVal
   final case class Connected(outgoing: ActorRef)
   final case class IncomingMessage(text: String)
   final case class OutgoingMessage(text: String)
 }
 
-class User(chatRoom: ChatRoomActorRef, userName: UserName) extends Actor {
+class User(chatRoom: ChatRoomActorRef, userName: ChatUserName) extends Actor {
 
   def receive: Receive = {
     case Connected(outgoing) =>

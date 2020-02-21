@@ -15,3 +15,9 @@ CREATE TABLE chatmessage (
   timeSent LONG,
   PRIMARY KEY (id));
 
+DROP TABLE `deebee`.`chatuser`;
+CREATE TABLE chatuser (
+  id INT,
+  username VARCHAR(50),
+  PRIMARY KEY (username));
+
