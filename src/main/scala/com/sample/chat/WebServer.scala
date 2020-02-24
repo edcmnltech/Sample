@@ -5,13 +5,13 @@ import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{Rejection, RejectionHandler, Route, ValidationRejection}
+import akka.http.scaladsl.server.{Route, ValidationRejection}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{CompletionStrategy, Materializer, OverflowStrategy}
 import akka.util.Timeout
 import com.sample.chat.User.{IncomingMessage, OutgoingMessage}
 import com.sample.chat.repository.table._
-import com.sample.chat.repository.{AuthTokenRepository, ChatMessageRepository, ChatRoomRepository, ChatUserRepository, table}
+import com.sample.chat.repository.{ChatMessageRepository, ChatRoomRepository, ChatUserRepository, table}
 import com.sample.chat.util.CORSHandler
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.generic.auto._
@@ -60,10 +60,6 @@ object WebServer extends App with CORSHandler {
               case Failure(exception) => logAndReject(exception)
             }
           }
-//            ~
-//            handleRejections(rejectionHandler) {
-//              complete("asdfasdfasdf")
-//            }
         }
       } ~
       path("chatrooms"){
@@ -91,10 +87,6 @@ object WebServer extends App with CORSHandler {
               case Failure(exception) => logAndReject(exception)
             }
           }
-//          ~
-//          handleRejections(rejectionHandler) {
-//            complete("asdfasdfasdf")
-//          }
         }
       } ~
       path("auth") {
@@ -195,9 +187,6 @@ object WebServer extends App with CORSHandler {
   }
   def completionImmediatelyMatcher: Any => CompletionStrategy = _ => CompletionStrategy.immediately
   def convert(chatRoomName: String, userName: String)(f: (ChatRoomName, ChatUserName) => Route): Route = f(new ChatRoomName(chatRoomName), new ChatUserName(userName))
-//  def rejectionHandler: RejectionHandler = RejectionHandler.newBuilder().handle {
-//    case r: Rejection => complete(s"REJECTED: $r")
-//  }.result()
 
   start()
 }

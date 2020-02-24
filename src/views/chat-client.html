@@ -4,39 +4,34 @@
             integrity="sha256-a23g1Nt4dtEYOj7bR+vTu7+T8VP13humZFBJNIYoEJo="
             crossorigin="anonymous"></script>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
-          integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+          integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous" />
     <title>Chat</title>
 </head>
 <body>
 <div class="container">
-    <div class="card col-sm px-md-n5 mx-auto">
-        <div>
-            <h5 id="chatroom" class="card-header">Chat Room: </h5>
-            <div class="overflow-auto card" style="height:300px">
-                <ul id="messages" class="list-group"></ul>
-            </div>
+        <div class="card">
+            <nav class="navbar navbar-expand-lg navbar-light bg-light">         
+                <div class="collapse navbar-collapse">
+                    <ul class ="navbar-brand navbar-nav mr-auto mt-3 mt-lg-0">
+                        <li class="navbar-nav mr-auto mt-3 mt-lg-0"><h3 id="chatroom">Chat Room: </h3></li>
+                        <form id="joinRoomForm" class="form-inline my-2 my-lg-0">
+                            <li><input type="text" id="nickname" class="form-control form-control mr-sm-2" placeholder="Nickname" /></li>
+                            <li><input type="password" id="password" class="form-control form-control mr-sm-2" placeholder="Password *not required" /></li>
+                            <li><button id="join" class="btn btn-success btn-lg">Join</button></li>
+                        </form>
+                    </ul>
+                </div>          
+            </nav>
+        </div>
+        <div class="overflow-auto card" style="height:300px">
+            <ul id="messages" class="list-group"></ul>
         </div>
         <div>
-            <div class="form-group row card-header">
-                <form id="joinRoomForm">
-                    <h5>Nickname: </h5>
-                    <input type="text" id="nickname"/>
-                    <h5>Password (*not required for Chat Room creator): </h5>
-                    <input type="password" id="password"/>
-                    <button id="join" class="btn btn-primary btn-lg">Join</button>
-                </form>
-            </div>
             <label for="message" class="mr-3">Type Message:</label>
             <textarea class="form-control" id="message" rows="3"></textarea>
             <button id="send" class="btn btn-primary btn-lg btn-block">Send</button>
         </div>
-        <div class="form-group">
-
-        </div>
-    </div>
 </div>
-</div>
-</form>
 
 <script language="javascript">
 
@@ -50,7 +45,9 @@
     var $messages = $("#messages"),
         $send = $("#send"),
         $message = $("#message"),
-        $join = $("#join")
+        $join = $("#join"),
+        $nickname = $("#nickname"),
+        $password = $("#password")
 
     $send.prop("disabled", true)
 
@@ -66,16 +63,23 @@
 
                 console.log("result is: "+result);
 
-                var addr = 'ws://test:1234@'+ws+'/chat/'+last+'/nickname/'+$("#nickname").val();
+                var addr = 'ws://test:1234@'+ws+'/chat/'+last+'/nickname/'+$nickname.val();
                 var connection = new WebSocket(addr);
 
                 console.log("opening websocket...");
                 connection.onopen = function () {
                     console.log("websocket opened...");
                     $join.prop("disabled", true);
+                    $join.html("Joined");
+                    $join.removeClass('btn-success');
+                    $join.addClass('btn-danger');
                     $send.prop("disabled", false);
+                    $password.prop("disabled", true);
+                    $password.val("");
+                    $password.hide();
+
                     $messages.append($("<li class='list-group-item'>Connected</li>"));
-                    $("#nickname").prop("disabled", true);
+                    $nickname.prop("disabled", true);
 
                     $send.on('click', function() {
                         var text = $message.val()
@@ -95,13 +99,13 @@
             data: JSON.stringify(
                 {
                     "userName" : {
-                        "value": $("#nickname").val()
+                        "value": $nickname.val()
                     },
                     "roomName" : {
                         "value": last
                     },
                     "password" : {
-                        "value": $("#password").val()
+                        "value": $password.val()
                     }
                 }
             )

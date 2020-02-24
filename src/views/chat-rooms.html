@@ -9,22 +9,21 @@
 </head>
 <body>
 <div class="container">
-    <div class="row mx-md-n5">
-        <div class="col-sm px-md-n5">
-            <div class="overflow-auto" style="height:300px">
+    <div class="row">
+        <div class="col-md-8">
+            <h3 class="mt-3">Available chat rooms: </h3>
+            <div class="overflow-auto mt-3" style="height:300px">
                 <ul id="chatrooms" class="list-group"></ul>
             </div>
         </div>
-        <div class="col-sm px-md-n5">
+        <div class="col-md-4">
             <form id="addRoomForm">
-                <div class="form-group">
-                    <label for="chatroomname">Add a new chat room:</label>
-                    <input type="text" class="form-control" id="chatroomname" placeholder="Awesome chatroom name"/>
-                    <label for="nickname">Nickname:</label>
-                    <input type="text" class="form-control" id="nickname" placeholder="Current user"/>
-                    <label for="password">Password:</label>
-                    <input type="password" class="form-control" id="password" placeholder="Password"/>
-                    <button id="add" class="btn btn-primary btn-lg btn-block">Add</button>
+                <div class="form-group mt-3">
+                    <h3>Add a chat room:</h3>
+                    <input type="text" class="form-control mt-3" id="chatroomname" placeholder="Chat room's name"/>
+                    <input type="text" class="form-control mt-3" id="nickname" placeholder="Creator's nickname"/>
+                    <input type="password" class="form-control mt-3" id="password" placeholder="Chat room's password"/>
+                    <button id="add" class="btn btn-success btn-lg btn-block mt-3">Add</button>
                 </div>
             </form>
         </div>

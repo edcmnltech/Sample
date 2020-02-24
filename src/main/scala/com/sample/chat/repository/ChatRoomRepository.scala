@@ -5,7 +5,7 @@ import com.sample.chat.repository.table._
 import slick.jdbc.MySQLProfile.api._
 import slick.lifted.TableQuery
 
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future}
 
 object ChatRoomRepository extends MySqlRepository {
 
@@ -30,10 +30,10 @@ object ChatRoomRepository extends MySqlRepository {
   }
 
   def checkIfValidUser(userName: ChatUserName, name: ChatRoomName, password: Option[ChatRoomPassword])(implicit ec: ExecutionContext): Future[Boolean] = {
-    val basicQuery = chatRoomTable.filter(_.creator === userName)
+    val basicQuery = chatRoomTable.filter(r => r.creator === userName && r.name === name)
     val query = password match {
       case None => basicQuery
-      case Some(pass) => basicQuery ++ chatRoomTable.filter(_.password === pass)
+      case Some(pass) => basicQuery ++ chatRoomTable.filter(r => r.password === pass && r.name === name)
     }
     db.run(query.result.headOption) flatMap {
       case Some(_) => Future.successful(true)
