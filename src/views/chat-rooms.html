@@ -44,7 +44,6 @@
     }
     reloadJson();
 
-
     var $add = $("#add");
     var $chatroomname = $("#chatroomname");
     var $nickname = $("#nickname");
@@ -52,9 +51,22 @@
 
     $("#addRoomForm").submit(function(event){
         event.preventDefault();
-        var post_url = url+"/chat/"+$chatroomname.val()+"/nickname/"+$nickname.val();
-        var form_data = $(this).serialize();
+        var post_url = url+"/chatrooms";
         var pass = { value: $("#password").val() }
+        var aaa = {
+            "name": {
+                "value": $("#chatroomname").val()
+            },
+            "creator": {
+                "value": $("#nickname").val()
+            },
+            "password": {
+                "value": $("#password").val()
+            },
+            "id": {
+                "value": 0
+            }
+        }
 
         $.ajax({
             url: post_url,
@@ -73,7 +85,7 @@
             error: function(jqXHR, textStatus, errorThrown) {
                console.log("Error saving of new chatroom" + textStatus, errorThrown);
             },
-            data: JSON.stringify(pass)
+            data: JSON.stringify(aaa)
         });
 
     });

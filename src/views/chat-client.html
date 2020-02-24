@@ -9,15 +9,23 @@
 </head>
 <body>
 <div class="container">
-    <div class="col-sm px-md-n5 mx-auto">
+    <div class="card col-sm px-md-n5 mx-auto">
         <div>
             <h5 id="chatroom" class="card-header">Chat Room: </h5>
             <div class="overflow-auto card" style="height:300px">
                 <ul id="messages" class="list-group"></ul>
             </div>
         </div>
-        <div class="card form-group">
-            <h5 id="nickname" class="card-header">Nickname: </h5>
+        <div>
+            <div class="form-group row card-header">
+                <form id="joinRoomForm">
+                    <h5>Nickname: </h5>
+                    <input type="text" id="nickname"/>
+                    <h5>Password (*not required for Chat Room creator): </h5>
+                    <input type="password" id="password"/>
+                    <button id="join" class="btn btn-primary btn-lg">Join</button>
+                </form>
+            </div>
             <label for="message" class="mr-3">Type Message:</label>
             <textarea class="form-control" id="message" rows="3"></textarea>
             <button id="send" class="btn btn-primary btn-lg btn-block">Send</button>
@@ -34,39 +42,71 @@
 
     var chatroom = $(location).attr('href').split('#');
     var last = chatroom[chatroom.length - 1];
-    var nickname = prompt("Enter your nickname");
 
-    //var host = "192.168.147.165"
-    var host = "localhost"
-    //var host = "0.0.0.0"
-    var port = "8080"
-    var url = host+":"+port
+    var url = "http://192.168.147.165:8080"
+    var ws = "192.168.147.165:8080"
+    var post_url = url+"/auth"
 
     var $messages = $("#messages"),
         $send = $("#send"),
         $message = $("#message"),
-        addr = 'ws://test:1234@'+url+'/chat/'+last+'/nickname/'+nickname
-        connection = new WebSocket(addr)
-        $send.prop("disabled",true)
+        $join = $("#join")
+
+    $send.prop("disabled", true)
 
     $("#chatroom").html("Chat Room: "+last)
-    $("#nickname").html("Nickname: "+nickname);
 
+    $("#joinRoomForm").submit(function(event){
+        event.preventDefault();
+        $.ajax({
+            url: post_url,
+            type: 'post',
+            contentType: 'application/json',
+            success: function(result, status, xhr){
 
-    connection.onopen = function () {
-        $send.prop("disabled",false)
-        $messages.append($("<li class='list-group-item'>Connected</li>"))
-        $send.on('click', function() {
-            var text = $message.val()
-            $message.val("")
-            connection.send(text)
-        })
-    }
-    connection.onerror = function (error) { console.log('WebSocket Error ', error) }
-    connection.onmessage = function (event) {
-        $messages.append($("<li class='list-group-item'>" + event.data + "</li>"))
-        document.getElementById('messages').lastChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    }
+                console.log("result is: "+result);
+
+                var addr = 'ws://test:1234@'+ws+'/chat/'+last+'/nickname/'+$("#nickname").val();
+                var connection = new WebSocket(addr);
+
+                console.log("opening websocket...");
+                connection.onopen = function () {
+                    console.log("websocket opened...");
+                    $join.prop("disabled", true);
+                    $send.prop("disabled", false);
+                    $messages.append($("<li class='list-group-item'>Connected</li>"));
+                    $("#nickname").prop("disabled", true);
+
+                    $send.on('click', function() {
+                        var text = $message.val()
+                        $message.val("")
+                        connection.send(text)
+                    })
+                }
+                connection.onerror = function (error) { console.log('WebSocket Error ', error) }
+                connection.onmessage = function (event) {
+                    $messages.append($("<li class='list-group-item'>" + event.data + "</li>"))
+                    document.getElementById('messages').lastChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                }
+            },
+            error: function(jqXHR, textStatus, errorThrown) {
+               console.log("websocket not opened..." + textStatus, errorThrown);
+            },
+            data: JSON.stringify(
+                {
+                    "userName" : {
+                        "value": $("#nickname").val()
+                    },
+                    "roomName" : {
+                        "value": last
+                    },
+                    "password" : {
+                        "value": $("#password").val()
+                    }
+                }
+            )
+        });
+    });
 
 </script>
 </body>

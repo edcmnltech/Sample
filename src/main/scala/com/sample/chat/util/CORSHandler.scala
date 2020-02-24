@@ -4,8 +4,9 @@ import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model.headers.{`Access-Control-Allow-Credentials`, `Access-Control-Allow-Headers`, `Access-Control-Allow-Methods`, `Access-Control-Allow-Origin`}
 import akka.http.scaladsl.model.{HttpResponse, StatusCodes}
 import akka.http.scaladsl.server.Directives.{complete, options, respondWithHeaders}
-import akka.http.scaladsl.server.{Directive0, Route}
+import akka.http.scaladsl.server.{Directive, Directive0, Directive1, Route}
 import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.directives.FormFieldDirectives
 
 trait CORSHandler {
 
@@ -29,6 +30,14 @@ trait CORSHandler {
 
   }
 
+  //this directive adds access control headers to normal responses
+
+//  private def addAccessControlHeaders[T]: Directive1[T] = {
+//
+//    respondWithDefaultHeaders(corsResponseHeaders)
+//
+//  }
+
   //this handles preflight OPTIONS requests.
 
   private def preflightRequestHandler: Route = options {
@@ -51,6 +60,7 @@ trait CORSHandler {
   // preventing duplication of CORS headers across code
 
   def addCORSHeaders(response: HttpResponse):HttpResponse =
+
 
     response.withHeaders(corsResponseHeaders)
 

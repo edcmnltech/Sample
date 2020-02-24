@@ -1,12 +1,11 @@
 package com.sample.chat.repository
 
 import com.sample.chat.repository.table.Implicits._
-import com.sample.chat.repository.table.{ChatRoomPassword, ChatRoom, ChatRoomName, ChatRoomTable}
-import slick.basic.DatabasePublisher
+import com.sample.chat.repository.table._
 import slick.jdbc.MySQLProfile.api._
 import slick.lifted.TableQuery
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{Await, ExecutionContext, Future}
 
 object ChatRoomRepository extends MySqlRepository {
 
@@ -27,6 +26,18 @@ object ChatRoomRepository extends MySqlRepository {
     db.run(query) flatMap {
       case Some(_) => Future.successful(true)
       case None => Future.failed(throw new SlickException(s"Incorrect password!"))
+    }
+  }
+
+  def checkIfValidUser(userName: ChatUserName, name: ChatRoomName, password: Option[ChatRoomPassword])(implicit ec: ExecutionContext): Future[Boolean] = {
+    val basicQuery = chatRoomTable.filter(_.creator === userName)
+    val query = password match {
+      case None => basicQuery
+      case Some(pass) => basicQuery ++ chatRoomTable.filter(_.password === pass)
+    }
+    db.run(query.result.headOption) flatMap {
+      case Some(_) => Future.successful(true)
+      case None => Future.successful(false)
     }
   }
 

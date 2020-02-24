@@ -1,26 +1,23 @@
 package com.sample.chat
 
-import java.sql.SQLIntegrityConstraintViolationException
-
 import akka.NotUsed
 import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{Route, ValidationRejection}
+import akka.http.scaladsl.server.{Rejection, RejectionHandler, Route, ValidationRejection}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.stream.{CompletionStrategy, Materializer, OverflowStrategy}
 import akka.util.Timeout
 import com.sample.chat.User.{IncomingMessage, OutgoingMessage}
-import com.sample.chat.repository.table.{ChatRoomPassword, ChatRoomActorRef, ChatRoomId, ChatRoomName, ChatUser, ChatUserName}
-import com.sample.chat.repository.{ChatMessageRepository, ChatRoomRepository, ChatUserRepository, table}
+import com.sample.chat.repository.table._
+import com.sample.chat.repository.{AuthTokenRepository, ChatMessageRepository, ChatRoomRepository, ChatUserRepository, table}
 import com.sample.chat.util.CORSHandler
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.generic.auto._
 import io.circe.syntax._
 
 import scala.concurrent.duration._
-import scala.concurrent.impl.Promise
 import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor, Future}
 import scala.io.StdIn
 import scala.util.{Failure, Success}
@@ -30,7 +27,8 @@ import scala.util.{Failure, Success}
  *
  * https://owasp.org/www-project-cheat-sheets/cheatsheets/Session_Management_Cheat_Sheet.html#Session_ID_Properties
  * https://owasp.org/www-project-cheat-sheets/cheatsheets/Authentication_Cheat_Sheet.html
- * FIXME: find alternative way to prevent hadouken code, for comprehension maybe?
+ *
+ * https://guide.freecodecamp.org/jquery/jquery-ajax-post-method/
  */
 
 object WebServer extends App with CORSHandler {
@@ -45,30 +43,68 @@ object WebServer extends App with CORSHandler {
       corsHandler(path("chat" / Segment / "nickname" / Segment) { (c, n) =>
         convert(c, n) { (selectedRoom, user) =>
           get {
-            onComplete(validateChatUser(user)) {
-              case Success(validChatUser) =>
-                onComplete(validateChatRoom(selectedRoom)) {
-                  case Success(validChatRoom) => handleWebSocketMessages(addUserToChatRoom(validChatRoom, validChatUser.name))
-                  case Failure(exception) => logAndReject(exception) }
-              case Failure(exception) => logAndReject(exception) }
-          } ~
-          post {
-            //FIXME: passing pass in plaintext is unsafe!
-            onComplete(validateChatUser(user)) {
-              case Success(validChatUser) =>
-                onComplete(ChatRoomRepository.insert(table.ChatRoom(selectedRoom, user, new ChatRoomPassword("password")))) {
-                  case Success(count) if count > 0 => complete(s"added $count record")
-                  case Failure(exception) => exception match {
-                    case e: SQLIntegrityConstraintViolationException => reject(throw e)
-                    case otherException => reject(throw otherException) } }
-              case Failure(exception) => logAndReject(exception) } }
+            val validations: Future[Flow[Message, Message, NotUsed]] = for {
+//                validUser <- validateChatUser(user)
+              validChatRoom <- validateChatRoom(selectedRoom)
+//                validChatRoomPassword <- validateChatRoomPassword(validChatRoom.meta.name, new ChatRoomPassword("password"))
+              flow <- Future(addUserToChatRoom(validChatRoom, user))
+            } yield flow
+
+            //NOTE: If there is no recovery of the future, there will be silent failure
+            validations.recoverWith { a =>
+              Future.failed(a)
+            }
+
+            onComplete(validations) {
+              case Success(flow) => handleWebSocketMessages(flow)
+              case Failure(exception) => logAndReject(exception)
+            }
+          }
+//            ~
+//            handleRejections(rejectionHandler) {
+//              complete("asdfasdfasdf")
+//            }
         }
-      }) ~
-      corsHandler(path("chatrooms"){
+      } ~
+      path("chatrooms"){
         get {
           onComplete(ChatRoomRepository.selectAll) {
             case Success(value) => complete(value.asJson)
             case Failure(exception) => reject(new ValidationRejection("This didn't work."))
+          }
+        } ~
+        post {
+          //FIXME: unsafe!
+          entity(as[table.ChatRoom]) { room =>
+
+            val validations: Future[Int] = for {
+                validUser <- validateChatUser(room.creator)
+                addedChatRoomId <- ChatRoomRepository.insert(room)
+              } yield addedChatRoomId
+
+            validations.recoverWith { a =>
+              Future.failed(a)
+            }
+
+            onComplete(validations) {
+              case Success(roomId) => complete(s"Chat room: $roomId record")
+              case Failure(exception) => logAndReject(exception)
+            }
+          }
+//          ~
+//          handleRejections(rejectionHandler) {
+//            complete("asdfasdfasdf")
+//          }
+        }
+      } ~
+      path("auth") {
+        entity(as[VerifyChatRoomCreator]) { verify =>
+          post {
+            onComplete(ChatRoomRepository.checkIfValidUser(verify.userName, verify.roomName, verify.password)) {
+              case Success(true) => complete("Auth success.")
+              case Success(false) => reject
+              case Failure(exception) => logAndReject(exception)
+            }
           }
         }
       })
@@ -94,7 +130,7 @@ object WebServer extends App with CORSHandler {
    ChatRoomRepository.selectByName(name) map { room =>
      chatRooms.find(_.meta == room) match {
        case None =>
-         val actorRef = system.actorOf(ChatRoom.props(), room.name.value)
+         val actorRef = system.actorOf(com.sample.chat.ChatRoom.props(), room.name.value)
          val chatRoomActorRef = ChatRoomActorRef(actorRef, room)
          chatRooms += chatRoomActorRef
          chatRoomActorRef
@@ -159,6 +195,9 @@ object WebServer extends App with CORSHandler {
   }
   def completionImmediatelyMatcher: Any => CompletionStrategy = _ => CompletionStrategy.immediately
   def convert(chatRoomName: String, userName: String)(f: (ChatRoomName, ChatUserName) => Route): Route = f(new ChatRoomName(chatRoomName), new ChatUserName(userName))
+//  def rejectionHandler: RejectionHandler = RejectionHandler.newBuilder().handle {
+//    case r: Rejection => complete(s"REJECTED: $r")
+//  }.result()
 
   start()
 }

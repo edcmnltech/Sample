@@ -1,10 +1,10 @@
+DROP TABLE `deebee`.`chatroom`;
 CREATE TABLE chatroom (
    id INT NOT NULL AUTO_INCREMENT,
    name VARCHAR(50),
    creator VARCHAR(300),
+   password VARCHAR(50),
    PRIMARY KEY (id));
-
-DROP TABLE `deebee`.`chatroom`;
 
 DROP TABLE `deebee`.`chatmessage`;
 CREATE TABLE chatmessage (
