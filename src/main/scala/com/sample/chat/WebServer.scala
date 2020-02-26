@@ -1,7 +1,7 @@
 package com.sample.chat
 
 import akka.NotUsed
-import akka.actor.{ActorRef, ActorSystem, Props}
+import akka.actor.{ActorRef, ActorSystem, InvalidActorNameException, Props}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.http.scaladsl.server.Directives._
@@ -29,6 +29,12 @@ import scala.util.{Failure, Success}
  * https://owasp.org/www-project-cheat-sheets/cheatsheets/Authentication_Cheat_Sheet.html
  *
  * https://guide.freecodecamp.org/jquery/jquery-ajax-post-method/
+ */
+
+/**
+ * TODO:
+ * 1. Improve database persistence of the message, maybe 1000 per batch insert instead of saving every chat.
+ *
  */
 
 object WebServer extends App with CORSHandler {
@@ -182,8 +188,11 @@ object WebServer extends App with CORSHandler {
   def logError: Throwable => Any =  { throwable: Throwable => print(s"Something went wrong: ${throwable.getMessage}") }
   def throwError: Any => Exception = _  => new Exception("Something went wrong")
   def logAndReject: Throwable => Route = { exception =>
-    println(s"ERORR: $exception")
-    reject(new ValidationRejection(exception.getMessage))
+    println(s"ERROR: $exception")
+    exception match {
+      case _: InvalidActorNameException => reject;
+      case _ => reject(new ValidationRejection(exception.getMessage))
+    }
   }
   def completionImmediatelyMatcher: Any => CompletionStrategy = _ => CompletionStrategy.immediately
   def convert(chatRoomName: String, userName: String)(f: (ChatRoomName, ChatUserName) => Route): Route = f(new ChatRoomName(chatRoomName), new ChatUserName(userName))

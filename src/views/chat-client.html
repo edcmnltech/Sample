@@ -20,7 +20,9 @@
             <form id="joinRoomForm" class="form-inline my-2 my-lg-0">
                 <input type="text" id="nickname" class="form-control form-control mr-sm-2" placeholder="Nickname" />
                 <input type="password" id="password" class="form-control form-control mr-sm-2" placeholder="Optional password" />
-                <button id="join" class="btn btn-success btn-lg">Join</button>
+                <button id="join" class="btn btn-success btn-lg">
+                    Join
+                </button>
             </form>
         </div>
     </div>
@@ -69,7 +71,6 @@
         $(".container").prepend(alert);
     }
 
-
     $("#joinRoomForm").submit(function(event){
         event.preventDefault();
         $.ajax({
@@ -78,12 +79,14 @@
             contentType: 'application/json',
             success: function(result, status, xhr){
 
-                console.log("result is: "+result);
-
                 var addr = 'ws://test:1234@'+ws+'/chat/'+last+'/nickname/'+$nickname.val();
                 var connection = new WebSocket(addr);
 
                 console.log("opening websocket...");
+                $join.html("<span class='spinner-grow spinner-grow-sm' role='status' aria-hidden='true'></span>"+
+        "Joining...");
+                $join.prop("disabled", true);
+
                 connection.onopen = function () {
                     console.log("websocket opened...");
                     $join.prop("disabled", true);
@@ -94,6 +97,7 @@
                     $password.prop("disabled", true);
                     $password.val("");
                     $password.hide();
+                    $('.alert').fadeOut();
 
                     $messages.append($("<li class='list-group-item'>Connected</li>"));
                     $nickname.prop("disabled", true);
@@ -104,16 +108,22 @@
                         connection.send(text)
                     })
                 }
-                connection.onerror = function (error) { console.log('WebSocket Error ', error) }
+                connection.onerror = function (error) { 
+                    $join.prop("disabled", false);
+                    $join.html("Join")
+                    var msg = "A chat instance for user '"+$nickname.val()+"' is already opened.";
+                    console.log(msg);
+                    createAlert(msg);
+                }
                 connection.onmessage = function (event) {
                     $messages.append($("<li class='list-group-item'>" + event.data + "</li>"))
                     document.getElementById('messages').lastChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
                 }
             },
             error: function(jqXHR, textStatus, errorThrown) {
-                var msg = "Cannot join room "+last+", websocket not opened...";
-               console.log(msg + textStatus, errorThrown);
-               createAlert(msg + errorThrown);
+                var msg = "Cannot join room '"+last+"', please check login details, WebSocket not opened.";
+                console.log(msg + textStatus, errorThrown);
+                createAlert(msg + errorThrown);
             },
             data: JSON.stringify(
                 {
@@ -129,11 +139,6 @@
                 }
             )
         });
-    });
-
-    $('#notif').on('closed.bs.alert', function () {
-        console.log("ooof");
-      $('#notif').hide();
     });
 
    
