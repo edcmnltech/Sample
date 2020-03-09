@@ -48,8 +48,11 @@
 
 <script language="javascript">
 
-    var chatroom = $(location).attr('href').split('#');
-    var last = chatroom[chatroom.length - 1];
+    var params = $(location).attr('href').split('?')[1];
+    var chatRoomId = params.split('&')[0].split('=')[1];
+    var chatRoomName = params.split('&')[1].split('=')[1];
+
+    // var last = chatroom[chatroom.length - 1];
 
     var url = "http://192.168.147.165:8080"
     var ws = "192.168.147.165:8080"
@@ -64,7 +67,7 @@
 
     $send.prop("disabled", true)
 
-    $("#chatroom").html("Chat Room: "+last)
+    $("#chatroom").html("Chat Room: "+chatRoomName)
 
      function createAlert(message) {
         var alert = "<div id='notif' class='alert alert-warning alert-dismissible show fade' role='alert'><strong>Warning! </strong>"+message+"<button type='button' class='close' data-dismiss='alert' aria-label='Close'><span aria-hidden='true'>&times;</span></button></div>";
@@ -79,7 +82,7 @@
             contentType: 'application/json',
             success: function(result, status, xhr){
 
-                var addr = 'ws://test:1234@'+ws+'/chat/'+last+'/nickname/'+$nickname.val();
+                var addr = 'ws://test:1234@'+ws+'/chatid/'+chatRoomId+'/chatname/'+chatRoomName+'/nickname/'+$nickname.val();
                 var connection = new WebSocket(addr);
 
                 console.log("opening websocket...");
@@ -121,7 +124,7 @@
                 }
             },
             error: function(jqXHR, textStatus, errorThrown) {
-                var msg = "Cannot join room '"+last+"', please check login details, WebSocket not opened.";
+                var msg = "Cannot join room '"+chatRoomName+"', please check login details, WebSocket not opened.";
                 console.log(msg + textStatus, errorThrown);
                 createAlert(msg + errorThrown);
             },
@@ -131,7 +134,7 @@
                         "value": $nickname.val()
                     },
                     "roomName" : {
-                        "value": last
+                        "value": chatRoomName
                     },
                     "password" : {
                         "value": $password.val()

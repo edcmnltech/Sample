@@ -37,7 +37,7 @@
     var items = $("#chatrooms");
     function reloadJson(){ $.getJSON(url+"/chatrooms", function(data){
           $.each( data, function( key, val ) {
-          items.prepend( "<li class='list-group-item' id='" + key + "'><a href='chat-client.html#"+val.name.value+"'>" + val.name.value + "</a></li>" );
+          items.prepend( "<li class='list-group-item' id='" + key + "'><a href='chat-client.html?id="+val.id.value+"&name="+val.name.value+"'>" + val.name.value + "</a></li>" );
           });
     });
     }

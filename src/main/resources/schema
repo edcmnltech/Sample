@@ -4,7 +4,7 @@ CREATE TABLE chatroom (
    name VARCHAR(50),
    creator VARCHAR(300),
    password VARCHAR(50),
-   PRIMARY KEY (id));
+   PRIMARY KEY (id, name));
 
 DROP TABLE `deebee`.`chatmessage`;
 CREATE TABLE chatmessage (
