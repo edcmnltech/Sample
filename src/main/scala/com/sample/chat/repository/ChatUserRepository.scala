@@ -1,12 +1,13 @@
 package com.sample.chat.repository
 
 import com.sample.chat.repository.table.Implicits._
-import com.sample.chat.repository.table.{ChatMessage, ChatMessageTable, ChatRoomId, ChatUser, ChatUserName, ChatUserTable}
-import slick.basic.DatabasePublisher
+import com.sample.chat.repository.table.{ChatRoomId, ChatRoomName, ChatRoomPassword, ChatUser, ChatUserName, ChatUserTable}
 import slick.jdbc.MySQLProfile.api._
 import slick.lifted.TableQuery
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
+
+final case class VerifyChatRoomCreator(userName: ChatUserName, roomName: ChatRoomName, password: ChatRoomPassword)
 
 object ChatUserRepository extends MySqlRepository {
 
@@ -22,7 +23,7 @@ object ChatUserRepository extends MySqlRepository {
       case None        => Future.failed(throw new NoSuchUserException(username))}
   }
 
-  def insert(chatUser: ChatUser): Future[Int] = {
+  def insert(chatUser: ChatUser): Future[ChatRoomId] = {
     val query = chatUserTable returning chatUserTable.map(_.id) += chatUser
     db.run(query)
   }

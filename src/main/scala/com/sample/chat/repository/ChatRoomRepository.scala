@@ -1,15 +1,11 @@
 package com.sample.chat.repository
 
-import akka.actor.Actor
 import com.sample.chat.repository.table.Implicits._
 import com.sample.chat.repository.table._
-import shapeless.Succ
 import slick.jdbc.MySQLProfile.api._
 import slick.lifted.TableQuery
 
-import scala.concurrent.impl.Promise
-import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Success
+import scala.concurrent.Future
 
 object ChatRoomRepository extends MySqlRepository {
 

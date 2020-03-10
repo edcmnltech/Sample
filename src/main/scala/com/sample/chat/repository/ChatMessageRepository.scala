@@ -1,7 +1,5 @@
 package com.sample.chat.repository
 
-import akka.actor.ActorSystem
-import akka.dispatch.MessageDispatcher
 import com.sample.chat.User.IncomingMessage
 import com.sample.chat.repository.table.Implicits._
 import com.sample.chat.repository.table.{ChatMessage, ChatMessageTable, ChatRoomId}
@@ -9,8 +7,7 @@ import slick.basic.DatabasePublisher
 import slick.jdbc.MySQLProfile.api._
 import slick.lifted.TableQuery
 
-import scala.collection.mutable.ListBuffer
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
 
 
 object ChatMessageRepository extends MySqlRepository {

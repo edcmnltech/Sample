@@ -3,7 +3,6 @@ package com.sample.chat
 import akka.actor.{Actor, ActorLogging, ActorRef, PoisonPill, Props, Terminated}
 import akka.stream.CompletionStrategy
 import com.sample.chat.ChatRoom.{ChatMessage, Join}
-import com.sample.chat.repository.table.{ChatRoomId, ChatRoomName}
 
 object ChatRoom {
   final case object Join

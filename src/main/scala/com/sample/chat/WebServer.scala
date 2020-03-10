@@ -1,26 +1,22 @@
 package com.sample.chat
 
-import java.util.{Random, UUID}
-
-import akka.{Done, NotUsed}
 import akka.actor.{ActorRef, ActorSystem, InvalidActorNameException, Props}
-import akka.dispatch.MessageDispatcher
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Route, ValidationRejection}
-import akka.stream.scaladsl.{Broadcast, Flow, Keep, Sink, Source}
+import akka.stream.scaladsl.{Broadcast, Flow, Sink, Source}
 import akka.stream.{ActorMaterializer, CompletionStrategy, Materializer, OverflowStrategy}
 import akka.util.Timeout
+import akka.{Done, NotUsed}
 import com.sample.chat.User.{IncomingMessage, OutgoingMessage}
 import com.sample.chat.repository.table._
-import com.sample.chat.repository.{ChatMessageRepository, ChatRoomRepository, ChatUserRepository, table}
+import com.sample.chat.repository.{ChatMessageRepository, ChatRoomRepository, ChatUserRepository, VerifyChatRoomCreator, table}
 import com.sample.chat.util.CORSHandler
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.generic.auto._
 import io.circe.syntax._
 
-import scala.collection.immutable
 import scala.collection.immutable.Seq
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor, Future}
@@ -86,7 +82,7 @@ object WebServer extends App with CORSHandler {
         get {
           onComplete(ChatRoomRepository.selectAll) {
             case Success(value)     => complete(value.asJson)
-            case Failure(exception) => reject(new ValidationRejection("This didn't work."))
+            case Failure(exception) => reject(ValidationRejection(s"Error in retrieving chatrooms: ${exception.getMessage}"))
           }
         } ~
         post {
@@ -109,7 +105,7 @@ object WebServer extends App with CORSHandler {
       path("auth") {
         entity(as[VerifyChatRoomCreator]) { verify =>
           post {
-            onComplete(ChatRoomRepository.checkIfValidUser(verify.userName, verify.roomName, verify.password)) {
+            onComplete(ChatRoomRepository.checkIfValidUser(verify.userName, verify.roomName, Option(verify.password))) {
               case Success(_)           => complete("Auth success.")
               case Failure(exception)   => logAndReject(exception)
             }
@@ -192,7 +188,7 @@ object WebServer extends App with CORSHandler {
         bm.dataStream.runWith(Sink.ignore)
         Future.successful(IncomingMessage(""))
     }
-      .groupedWithin(2, .5 seconds)
+      .groupedWithin(2, .5.seconds)
       .map(Future.sequence(_))
 
     val printing: Any => Unit = a => println("Kobeed_19 "+a)

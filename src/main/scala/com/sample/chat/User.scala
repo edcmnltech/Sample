@@ -37,7 +37,7 @@ class User(chatRoom: ChatRoomActorRef, userName: ChatUserName)(implicit ec: Exec
     case ChatRoom.ChatMessage(text) =>
       log.info(s"Msg out -> $outgoing")
       outgoing ! OutgoingMessage(text)
-    case a: CompletionStrategy =>
+    case _: CompletionStrategy =>
       self ! PoisonPill
     case wth =>
       log.error(s"ERROR with: $wth")
