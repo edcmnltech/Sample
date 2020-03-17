@@ -3,7 +3,7 @@ package com.sample.chat
 import akka.actor.{Actor, ActorLogging, ActorRef, PoisonPill}
 import akka.stream.CompletionStrategy
 import com.sample.chat.User.{Connected, IncomingMessage, OutgoingMessage}
-import com.sample.chat.repository.table.{ChatRoomActorRef, ChatUserName}
+import com.sample.chat.repository.{ChatRoomActorRef, ChatUserName}
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -20,21 +20,21 @@ class User(chatRoom: ChatRoomActorRef, userName: ChatUserName)(implicit ec: Exec
     case Connected(outgoing) =>
       log.info(s"User connected: ${userName.value}")
       context.become(connected(outgoing))
-      chatRoom.actorRef ! ChatRoom.Join
+      chatRoom.actorRef ! Room.Join
   }
 
   def connected(outgoing: ActorRef): Receive = {
     case IncomingMessage(text, sender) =>
       log.info(s"Msg in <- ${chatRoom.actorRef}")
-      chatRoom.actorRef ! ChatRoom.ChatMessage(text, sender)
+      chatRoom.actorRef ! Room.ChatMessage(text, sender)
     case a: Future[Seq[IncomingMessage]] =>
       a.map{ xxx =>
         xxx.map { msg =>
           log.info(s"Msg in <- ${chatRoom.actorRef}")
-          chatRoom.actorRef ! ChatRoom.ChatMessage(msg.text, msg.sender)
+          chatRoom.actorRef ! Room.ChatMessage(msg.text, msg.sender)
         }
       }
-    case ChatRoom.ChatMessage(text, sender) =>
+    case Room.ChatMessage(text, sender) =>
       log.info(s"Msg out -> $outgoing")
       outgoing ! OutgoingMessage(text, sender)
     case _: CompletionStrategy =>

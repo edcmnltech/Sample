@@ -10,7 +10,6 @@ import akka.stream.scaladsl.{Broadcast, Flow, Sink, Source}
 import akka.stream.{ActorMaterializer, CompletionStrategy, Materializer, OverflowStrategy}
 import akka.util.Timeout
 import com.sample.chat.User.{IncomingMessage, OutgoingMessage}
-import com.sample.chat.repository.table._
 import com.sample.chat.repository._
 import com.sample.chat.util.CORSHandler
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
@@ -38,7 +37,12 @@ import scala.util.{Failure, Success}
  * 2. Update sql tables that use LONG to use com.byteslounge.slickrepo.version.InstantVersion instead
  */
 
-object WebServer extends App with CORSHandler {
+object WebServer extends App
+  with CORSHandler
+  with ChatMessageRepository
+  with ChatRoomRepository
+  with ChatUserRepository
+  with MySqlRepository {
 
   private var chatRooms: Set[ChatRoomActorRef] = Set.empty
 
@@ -69,17 +73,17 @@ object WebServer extends App with CORSHandler {
       } ~
       path("chatrooms"){
         get {
-          onComplete(ChatRoomRepository.selectAll) {
+          onComplete(selectAll) {
             case Success(value)     => complete(value.asJson)
             case Failure(exception) => reject(ValidationRejection(s"Error in retrieving chatrooms: ${exception.getMessage}"))
           }
         } ~
         post {
           //FIXME: unsafe!
-          entity(as[table.ChatRoom]) { room =>
+          entity(as[ChatRoom]) { room =>
             val validations: Future[Int] = for {
                 validUser       <- validateChatUser(room.creator)
-                addedChatRoomId <- ChatRoomRepository.insert(room)
+                addedChatRoomId <- insertRoom(room)
               } yield addedChatRoomId
 
             validations.recoverWith { case a => Future.failed(a) }
@@ -94,7 +98,7 @@ object WebServer extends App with CORSHandler {
       path("auth") {
         entity(as[VerifyChatRoomCreator]) { verify =>
           post {
-            onComplete(ChatRoomRepository.checkIfValidUser(verify.userName, verify.roomName, Option(verify.password))) {
+            onComplete(checkIfValidUser(verify.userName, verify.roomName, Option(verify.password))) {
               case Success(_)           => complete("Auth success.")
               case Failure(exception)   => logAndReject(exception)
             }
@@ -112,20 +116,20 @@ object WebServer extends App with CORSHandler {
     system.terminate()
   }
 
-  def linkChatRoomAndUser(chatRoom: table.ChatRoomActorRef, user: ChatUserName)(implicit system: ActorSystem, ec: ExecutionContext, mat: ActorMaterializer): Flow[Message, Message, NotUsed] = {
+  def linkChatRoomAndUser(chatRoom: ChatRoomActorRef, user: ChatUserName)(implicit system: ActorSystem, ec: ExecutionContext, mat: ActorMaterializer): Flow[Message, Message, NotUsed] = {
     val userActorRef: ActorRef = system.actorOf(Props(new User(chatRoom, user))/*, user.value*/) //attaching of User to a ChatRoom
     Flow.fromSinkAndSource(incomingMessages(userActorRef, user, chatRoom), outgoingMessages(userActorRef, chatRoom.meta.id))
   }
 
-  def validateChatUser(username: ChatUserName)(implicit executionContext: ExecutionContext): Future[ChatUser] = ChatUserRepository.selectByName(username)
+  def validateChatUser(username: ChatUserName)(implicit executionContext: ExecutionContext): Future[ChatUser] = selectByUsername(username)
 
   def validateChatRoom(name: ChatRoomName)(implicit executionContext: ExecutionContext, system: ActorSystem, timeout: Timeout = Timeout(5.seconds)): Future[ChatRoomActorRef] = {
-    Source.fromFuture(ChatRoomRepository.selectByName(name))
+    Source.fromFuture(selectByRoomName(name))
 
-    ChatRoomRepository.selectByName(name) map { room =>
+    selectByRoomName(name) map { room =>
       chatRooms.find(_.meta == room) match {
         case None =>
-          val actorRef = system.actorOf(com.sample.chat.ChatRoom.props(), room.name.value)
+          val actorRef = system.actorOf(com.sample.chat.Room.props(), room.name.value)
           val chatRoomActorRef = ChatRoomActorRef(actorRef, room)
           chatRooms += chatRoomActorRef
           chatRoomActorRef
@@ -151,11 +155,11 @@ object WebServer extends App with CORSHandler {
       case bm: BinaryMessage =>
         bm.dataStream.runWith(Sink.ignore)
         Future.successful(IncomingMessage("", user)) }
-      .groupedWithin(10, .5.seconds)
+      .groupedWithin(100, .5.seconds)
       .map(Future.sequence(_))
 
-    val insertBulk          = ChatMessageRepository.insertBulk(chatRoom.meta.id)(_)
-    val dbSink              = Sink.foreach[Future[Seq[IncomingMessage]]](msgs => insertBulk(msgs))
+    val insert              = insertBulk(chatRoom.meta.id)(_)
+    val dbSink              = Sink.foreach[Future[Seq[IncomingMessage]]](msgs => insert(msgs))
     val actorSink           = Sink.actorRef[Future[Seq[IncomingMessage]]](userActor, CompletionStrategy.immediately)
     val incomingMessageSink = Sink.combine(dbSink, actorSink)(Broadcast[Future[Seq[IncomingMessage]]](_))
 
@@ -170,7 +174,7 @@ object WebServer extends App with CORSHandler {
    */
   def outgoingMessages(userActor: ActorRef, chatRoomName: ChatRoomId)(implicit mat: Materializer, ec: ExecutionContext): Source[Message, NotUsed] = {
     def msgFormat(sender: String, msg: String) = s"$sender: $msg"
-    val historySource         = Source.fromPublisher(ChatMessageRepository.selectByRoomId(chatRoomName)).map(a => TextMessage.Strict(msgFormat(a.sender, a.message))).buffer(1000, OverflowStrategy.backpressure)
+    val historySource         = Source.fromPublisher(selectByRoomId(chatRoomName)).map(a => TextMessage.Strict(msgFormat(a.sender, a.message))).buffer(1000, OverflowStrategy.backpressure)
     val outgoingMessageSource = Source.actorRef[User.OutgoingMessage](100, OverflowStrategy.fail).buffer(1000, OverflowStrategy.backpressure)
       .mapMaterializedValue { outActor =>
         println(s"Source materialized actor: $outActor")

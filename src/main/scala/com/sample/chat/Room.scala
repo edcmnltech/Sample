@@ -2,17 +2,17 @@ package com.sample.chat
 
 import akka.actor.{Actor, ActorLogging, ActorRef, PoisonPill, Props, Terminated}
 import akka.stream.CompletionStrategy
-import com.sample.chat.ChatRoom.{ChatMessage, Join}
-import com.sample.chat.repository.table.ChatUserName
+import com.sample.chat.Room.{ChatMessage, Join}
+import com.sample.chat.repository.ChatUserName
 
-object ChatRoom {
+object Room {
   final case object Join
   final case class ChatMessage(message: String, sender: ChatUserName)
 
-  def props(): Props = Props(classOf[ChatRoom])
+  def props(): Props = Props(classOf[Room])
 }
 
-class ChatRoom extends Actor with ActorLogging {
+class Room extends Actor with ActorLogging {
   var users: Set[ActorRef] = Set.empty
 
   def receive: Receive = {

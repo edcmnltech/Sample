@@ -13,9 +13,10 @@ trait MySqlRepository {
     val noOfThread: Int = processors * 2
   }
 
-  implicit val ioThreadPool: ExecutionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(DatabaseExecutionContext.noOfThread))
-
   val schema = "deebee"
 
   val db = Database.forConfig(schema)
+
+  val ec: ExecutionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(DatabaseExecutionContext.noOfThread))
+
 }

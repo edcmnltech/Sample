@@ -1,6 +1,4 @@
-package com.sample.chat.repository.table
-
-import java.time.{Instant, OffsetDateTime, ZoneId}
+package com.sample.chat.repository
 
 import slick.ast.BaseTypedType
 import slick.jdbc.JdbcType
