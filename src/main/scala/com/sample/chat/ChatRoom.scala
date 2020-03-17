@@ -3,10 +3,11 @@ package com.sample.chat
 import akka.actor.{Actor, ActorLogging, ActorRef, PoisonPill, Props, Terminated}
 import akka.stream.CompletionStrategy
 import com.sample.chat.ChatRoom.{ChatMessage, Join}
+import com.sample.chat.repository.table.ChatUserName
 
 object ChatRoom {
   final case object Join
-  final case class ChatMessage(message: String)
+  final case class ChatMessage(message: String, sender: ChatUserName)
 
   def props(): Props = Props(classOf[ChatRoom])
 }

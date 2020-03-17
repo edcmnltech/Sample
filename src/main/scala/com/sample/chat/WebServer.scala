@@ -1,5 +1,6 @@
 package com.sample.chat
 
+import akka.NotUsed
 import akka.actor.{ActorRef, ActorSystem, InvalidActorNameException, Props}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
@@ -8,10 +9,9 @@ import akka.http.scaladsl.server.{Route, ValidationRejection}
 import akka.stream.scaladsl.{Broadcast, Flow, Sink, Source}
 import akka.stream.{ActorMaterializer, CompletionStrategy, Materializer, OverflowStrategy}
 import akka.util.Timeout
-import akka.{Done, NotUsed}
 import com.sample.chat.User.{IncomingMessage, OutgoingMessage}
 import com.sample.chat.repository.table._
-import com.sample.chat.repository.{ChatMessageRepository, ChatRoomRepository, ChatUserRepository, VerifyChatRoomCreator, table}
+import com.sample.chat.repository._
 import com.sample.chat.util.CORSHandler
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.generic.auto._
@@ -37,17 +37,6 @@ import scala.util.{Failure, Success}
  * 1. Improve database persistence of the message, maybe 1000 per batch insert instead of saving every chat.
  * 2. Update sql tables that use LONG to use com.byteslounge.slickrepo.version.InstantVersion instead
  */
-//object Main extends App {
-//  def t(i:Int) = new Thread{
-//    override def run(): Unit = while(true){
-//      1+1
-//    }
-//  }
-//  (1 to 72).foreach { i =>
-//    val tt = t(i)
-//    tt.start()
-//  }
-//}
 
 object WebServer extends App with CORSHandler {
 
@@ -56,7 +45,7 @@ object WebServer extends App with CORSHandler {
   def start(): Unit = {
 
     implicit val system: ActorSystem = ActorSystem("chat-actor-system")
-    implicit val materializer = ActorMaterializer.create(system)
+    implicit val materializer: ActorMaterializer = ActorMaterializer.create(system)
     implicit val ec: ExecutionContextExecutor = ExecutionContext.global
 
     val route: Route =
@@ -89,7 +78,7 @@ object WebServer extends App with CORSHandler {
           //FIXME: unsafe!
           entity(as[table.ChatRoom]) { room =>
             val validations: Future[Int] = for {
-                validUser <- validateChatUser(room.creator)
+                validUser       <- validateChatUser(room.creator)
                 addedChatRoomId <- ChatRoomRepository.insert(room)
               } yield addedChatRoomId
 
@@ -151,60 +140,26 @@ object WebServer extends App with CORSHandler {
    * ability of the webserver actor to receive message from a websocket request
    */
   def incomingMessages(userActor: ActorRef, user: ChatUserName, chatRoom: ChatRoomActorRef)(implicit mat: Materializer, ec: ExecutionContext, system: ActorSystem): Sink[Message, NotUsed] = {
-//    implicit val blockingDispatcher: MessageDispatcher = system.dispatchers.lookup("my-blocking-dispatcher")
-
-    val newLine = "\n"
-    val parallelism = 4
     val streamedMessageTimeout = 5.seconds
-//    val actorSink: Sink[IncomingMessage, NotUsed] = Sink.actorRef[User.IncomingMessage](userActor, CompletionStrategy.immediately)
-//    val historySink: Flow[IncomingMessage, Nothing, NotUsed] = Flow[IncomingMessage].mapAsync(4) { incoming =>
-//      ChatMessageRepository.insert(table.ChatMessage(user.value, incoming.text, chatRoom.meta.id))
-//    }
-//    val historySink: Flow[Message, Sink[Future[immutable.Seq[IncomingMessage]], Future[Done]], NotUsed] = StreamGraphs.batchInsert("eli", new ChatRoomId(1))
 
-//    Flow[Message].mapAsync(parallelism) {
-//      case TextMessage.Strict(text) => Future.successful(Some(IncomingMessage(text)))
-//      case TextMessage.Streamed(textStream) => textStream
-//        .completionTimeout(streamedMessageTimeout)
-//        .runFold(StringBuilder.newBuilder)((builder, s) => builder.append(s))
-//        .map(b => Option(IncomingMessage(b.toString())))
-//      case bm: BinaryMessage =>
-//        bm.dataStream.runWith(Sink.ignore)
-//        Future.successful(None)
-//    }.collect { case Some(msg) => msg }
-//      .via(historySink)
-//      .viaMat(Flow[table.ChatMessage].map(s => IncomingMessage(s"${s.sender} : ${s.message}")))(Keep.right)
-//      .to(actorSink)
-
-    /// START
-
-    val messageFlow = Flow[Message].map { //then try mapAsync(parallelism)
-      case TextMessage.Strict(text) => Future.successful(IncomingMessage(text))
+    val messageFlow = Flow[Message].map {
+      case TextMessage.Strict(text) => Future.successful(IncomingMessage(text, user))
       case TextMessage.Streamed(textStream) => textStream
         .completionTimeout(streamedMessageTimeout)
         .runFold(StringBuilder.newBuilder)((builder, s) => builder.append(s))
-        .map(b => IncomingMessage(b.toString()))
+        .map(b => IncomingMessage(b.toString(), user))
       case bm: BinaryMessage =>
         bm.dataStream.runWith(Sink.ignore)
-        Future.successful(IncomingMessage(""))
-    }
-      .groupedWithin(2, .5.seconds)
+        Future.successful(IncomingMessage("", user)) }
+      .groupedWithin(10, .5.seconds)
       .map(Future.sequence(_))
 
-    val printing: Any => Unit = a => println("Kobeed_19 "+a)
-//
-    val printSink: Sink[Future[Seq[IncomingMessage]], Future[Done]] = Sink.foreach(printing(_))
+    val insertBulk          = ChatMessageRepository.insertBulk(chatRoom.meta.id)(_)
+    val dbSink              = Sink.foreach[Future[Seq[IncomingMessage]]](msgs => insertBulk(msgs))
+    val actorSink           = Sink.actorRef[Future[Seq[IncomingMessage]]](userActor, CompletionStrategy.immediately)
+    val incomingMessageSink = Sink.combine(dbSink, actorSink)(Broadcast[Future[Seq[IncomingMessage]]](_))
 
-    val dbSink: Sink[Future[Seq[IncomingMessage]], Future[Done]] = Sink.foreach[Future[Seq[IncomingMessage]]](ChatMessageRepository.insertBulk)
-    val actorSink: Sink[Future[Seq[IncomingMessage]], NotUsed] = Sink.actorRef[Future[Seq[IncomingMessage]]](userActor, CompletionStrategy.immediately)
-
-    val compositeSink = Sink.combine(dbSink, actorSink, printSink)(Broadcast[Future[Seq[IncomingMessage]]](_))
-
-    //    def actorSink(userActor: ActorRef): Sink[IncomingMessage, NotUsed] = Sink.actorRef[User.IncomingMessage](userActor, CompletionStrategy.immediately)
-
-    messageFlow.to(compositeSink)
-
-    /// END
+    messageFlow.to(incomingMessageSink)
   }
 
   /**
@@ -214,13 +169,14 @@ object WebServer extends App with CORSHandler {
    * ability of the actor to send message to a chatroom, then sending to all users connected to it
    */
   def outgoingMessages(userActor: ActorRef, chatRoomName: ChatRoomId)(implicit mat: Materializer, ec: ExecutionContext): Source[Message, NotUsed] = {
-    val historySource = Source.fromPublisher(ChatMessageRepository.selectByRoomId(chatRoomName)).map(a => TextMessage.Strict(a.message)).buffer(1000, OverflowStrategy.backpressure)
+    def msgFormat(sender: String, msg: String) = s"$sender: $msg"
+    val historySource         = Source.fromPublisher(ChatMessageRepository.selectByRoomId(chatRoomName)).map(a => TextMessage.Strict(msgFormat(a.sender, a.message))).buffer(1000, OverflowStrategy.backpressure)
     val outgoingMessageSource = Source.actorRef[User.OutgoingMessage](100, OverflowStrategy.fail).buffer(1000, OverflowStrategy.backpressure)
       .mapMaterializedValue { outActor =>
         println(s"Source materialized actor: $outActor")
         userActor ! User.Connected(outActor)
         NotUsed
-      }.map((outMsg: OutgoingMessage) => TextMessage(outMsg.text))
+      }.map((outMsg: OutgoingMessage) => TextMessage(msgFormat(outMsg.sender.value, outMsg.text)))
 
     historySource.concat(outgoingMessageSource)
   }
@@ -231,7 +187,7 @@ object WebServer extends App with CORSHandler {
     println(s"ERROR: $exception")
     exception match {
       case _: InvalidActorNameException => reject;
-      case _ => reject(new ValidationRejection(exception.getMessage))
+      case _ => reject(ValidationRejection(exception.getMessage))
     }
   }
   def completionImmediatelyMatcher: Any => CompletionStrategy = _ => CompletionStrategy.immediately

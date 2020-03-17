@@ -9,8 +9,8 @@ import scala.concurrent.{ExecutionContext, Future}
 
 object User {
   final case class Connected(outgoing: ActorRef)
-  final case class IncomingMessage(text: String)
-  final case class OutgoingMessage(text: String)
+  final case class IncomingMessage(text: String, sender: ChatUserName)
+  final case class OutgoingMessage(text: String, sender: ChatUserName)
 }
 
 class User(chatRoom: ChatRoomActorRef, userName: ChatUserName)(implicit ec: ExecutionContext) extends Actor with ActorLogging {
@@ -24,19 +24,19 @@ class User(chatRoom: ChatRoomActorRef, userName: ChatUserName)(implicit ec: Exec
   }
 
   def connected(outgoing: ActorRef): Receive = {
-    case IncomingMessage(text) =>
+    case IncomingMessage(text, sender) =>
       log.info(s"Msg in <- ${chatRoom.actorRef}")
-      chatRoom.actorRef ! ChatRoom.ChatMessage(text)
+      chatRoom.actorRef ! ChatRoom.ChatMessage(text, sender)
     case a: Future[Seq[IncomingMessage]] =>
       a.map{ xxx =>
-        xxx.map { text =>
+        xxx.map { msg =>
           log.info(s"Msg in <- ${chatRoom.actorRef}")
-          chatRoom.actorRef ! ChatRoom.ChatMessage(text.text)
+          chatRoom.actorRef ! ChatRoom.ChatMessage(msg.text, msg.sender)
         }
       }
-    case ChatRoom.ChatMessage(text) =>
+    case ChatRoom.ChatMessage(text, sender) =>
       log.info(s"Msg out -> $outgoing")
-      outgoing ! OutgoingMessage(text)
+      outgoing ! OutgoingMessage(text, sender)
     case _: CompletionStrategy =>
       self ! PoisonPill
     case wth =>

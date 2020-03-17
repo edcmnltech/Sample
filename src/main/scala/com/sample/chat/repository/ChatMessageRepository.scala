@@ -2,7 +2,7 @@ package com.sample.chat.repository
 
 import com.sample.chat.User.IncomingMessage
 import com.sample.chat.repository.table.Implicits._
-import com.sample.chat.repository.table.{ChatMessage, ChatMessageTable, ChatRoomId}
+import com.sample.chat.repository.table.{ChatMessage, ChatMessageTable, ChatRoomId, ChatUserName}
 import slick.basic.DatabasePublisher
 import slick.jdbc.MySQLProfile.api._
 import slick.lifted.TableQuery
@@ -24,16 +24,10 @@ object ChatMessageRepository extends MySqlRepository {
     db.run(query).map(_ => chatMessage)
   }
 
-//  def insertBulk(chatMessages: Future[Seq[ChatMessage]]): Future[Option[Int]] = {
-//    chatMessages.flatMap { a =>
-//       db.run(chatMessageTable ++= a)
-//    }
-//  }
-//
-  def insertBulk(chatMessages: Future[Seq[IncomingMessage]]): Future[Option[Int]] = {
-    chatMessages.flatMap { a =>
-      val aaa = a.map(i => ChatMessage("eli", i.text,  new ChatRoomId(1)))
-      db.run(chatMessageTable ++= aaa)
+  def insertBulk(roomId: ChatRoomId)(chatMessages: Future[Seq[IncomingMessage]]): Future[Option[Int]] = {
+    chatMessages.flatMap { msg =>
+      val msgs = msg.map(i => ChatMessage(i.sender.value, i.text,  roomId))
+      db.run(chatMessageTable ++= msgs)
     }
   }
 

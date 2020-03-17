@@ -1,5 +1,3 @@
-enablePlugins(GatlingPlugin)
-
 scalaVersion := "2.12.10" //downgrade due to gatling https://github.com/gatling/gatling/issues/3566
 
 val akkaVersion = "2.5.26"
@@ -38,4 +36,4 @@ val gatlingVersion = "3.3.1"
 libraryDependencies += "io.gatling.highcharts" % "gatling-charts-highcharts" % gatlingVersion % "test"
 libraryDependencies += "io.gatling"            % "gatling-test-framework"    % gatlingVersion % "test"
 
-//conflictManager := ConflictManager.strict
+enablePlugins(GatlingPlugin)
