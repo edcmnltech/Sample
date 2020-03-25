@@ -2,6 +2,7 @@ package com.sample.chat
 
 import akka.actor.{Actor, ActorLogging, ActorRef, PoisonPill}
 import akka.stream.CompletionStrategy
+import akka.stream.scaladsl.Source
 import com.sample.chat.User.{Connected, IncomingMessage, OutgoingMessage}
 import com.sample.chat.repository.{ChatRoomActorRef, ChatUserName}
 
@@ -41,6 +42,11 @@ class User(chatRoom: ChatRoomActorRef, userName: ChatUserName)(implicit ec: Exec
       self ! PoisonPill
     case wth =>
       log.error(s"ERROR with: $wth")
+  }
+
+  override def postStop(): Unit = {
+    log.info("Bye world!")
+    super.postStop()
   }
 
 }

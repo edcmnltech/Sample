@@ -1,5 +1,6 @@
 package com.sample.chat.repository
 
+import akka.actor.ActorRef
 import slick.jdbc.MySQLProfile.api._
 import slick.lifted.{ProvenShape, TableQuery}
 
@@ -31,6 +32,7 @@ trait ChatUserRepository extends ChatUserTable { this: MySqlRepository =>
 class ChatUserName(val value: String) extends AnyVal
 final class ChatUserId(val value: String) extends AnyVal
 final case class ChatUser(id: ChatRoomId, username: ChatUserName)
+final case class ChatUserActorRef(actorRef: ActorRef, meta: ChatUserName)
 
 private[repository] trait ChatUserTable { this: MySqlRepository =>
 

@@ -1,13 +1,13 @@
 package com.sample.chat
 
 import akka.NotUsed
-import akka.actor.{ActorRef, ActorSystem, InvalidActorNameException, Props}
+import akka.actor.{ActorRef, ActorSystem, InvalidActorNameException, PoisonPill, Props}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Route, ValidationRejection}
 import akka.stream.scaladsl.{Broadcast, Flow, Sink, Source}
-import akka.stream.{ActorMaterializer, CompletionStrategy, Materializer, OverflowStrategy}
+import akka.stream._
 import akka.util.Timeout
 import com.sample.chat.User.{IncomingMessage, OutgoingMessage}
 import com.sample.chat.repository._
@@ -33,7 +33,6 @@ import scala.util.{Failure, Success}
 
 /**
  * TODO:
- * 1. Improve database persistence of the message, maybe 1000 per batch insert instead of saving every chat.
  * 2. Update sql tables that use LONG to use com.byteslounge.slickrepo.version.InstantVersion instead
  */
 
@@ -45,6 +44,7 @@ object WebServer extends App
   with MySqlRepository {
 
   private var chatRooms: Set[ChatRoomActorRef] = Set.empty
+  private var users: Set[ChatUserActorRef] = Set.empty
 
   def start(): Unit = {
 
@@ -56,16 +56,17 @@ object WebServer extends App
       corsHandler(path("chatid" / IntNumber / "chatname" / Segment / "nickname" / Segment) { (cid, cname, n) =>
         convert(cid, cname, n) { (selectedRoomId, selectedRoom, user) =>
           get {
-            val validations: Future[Flow[Message, Message, NotUsed]] = for {
+            val validations = for {
               validChatRoom <- validateChatRoom(selectedRoom)
-              flow <- Future(linkChatRoomAndUser(validChatRoom, user))
+              flow          <- Future(linkChatRoomAndUser(validChatRoom, user))
             } yield flow
 
             //NOTE: If there is no recovery of the future, there will be silent failure
             validations.recoverWith { case a => Future.failed(a) }
 
             onComplete(validations) {
-              case Success(flow)      => handleWebSocketMessages(flow)
+              case Success(flow)      =>
+                handleWebSocketMessages(flow)
               case Failure(exception) => logAndReject(exception)
             }
           }
@@ -117,15 +118,28 @@ object WebServer extends App
   }
 
   def linkChatRoomAndUser(chatRoom: ChatRoomActorRef, user: ChatUserName)(implicit system: ActorSystem, ec: ExecutionContext, mat: ActorMaterializer): Flow[Message, Message, NotUsed] = {
-    val userActorRef: ActorRef = system.actorOf(Props(new User(chatRoom, user))/*, user.value*/) //attaching of User to a ChatRoom
+
+    val targetUser = users.find(_.meta == user)
+
+    def createNewActorRef = {
+      val newActorRef = system.actorOf(Props(new User(chatRoom, user)))
+      users += ChatUserActorRef(newActorRef, user)
+      newActorRef
+    }
+
+    val userActorRef = if (targetUser.nonEmpty) {
+      val oldActorRef = targetUser.get.actorRef
+      oldActorRef ! PoisonPill
+      users -= ChatUserActorRef(oldActorRef, user)
+      createNewActorRef
+    } else createNewActorRef
+
     Flow.fromSinkAndSource(incomingMessages(userActorRef, user, chatRoom), outgoingMessages(userActorRef, chatRoom.meta.id))
   }
 
   def validateChatUser(username: ChatUserName)(implicit executionContext: ExecutionContext): Future[ChatUser] = selectByUsername(username)
 
   def validateChatRoom(name: ChatRoomName)(implicit executionContext: ExecutionContext, system: ActorSystem, timeout: Timeout = Timeout(5.seconds)): Future[ChatRoomActorRef] = {
-    Source.fromFuture(selectByRoomName(name))
-
     selectByRoomName(name) map { room =>
       chatRooms.find(_.meta == room) match {
         case None =>
@@ -163,7 +177,16 @@ object WebServer extends App
     val actorSink           = Sink.actorRef[Future[Seq[IncomingMessage]]](userActor, CompletionStrategy.immediately)
     val incomingMessageSink = Sink.combine(dbSink, actorSink)(Broadcast[Future[Seq[IncomingMessage]]](_))
 
-    messageFlow.to(incomingMessageSink)
+    messageFlow.watch(userActor).watchTermination() { (_, fut) =>
+      fut onComplete {
+        case Success(value) => println("Success")
+        case Failure(exception) => exception match {
+          case e: WatchedActorTerminatedException => println("Actor died, closing previous websocket connection")
+          case e => println(e)
+        }
+      }
+      NotUsed
+    }.to(incomingMessageSink)
   }
 
   /**
